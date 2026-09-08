@@ -15,6 +15,17 @@
 <body>
 <div id="root"></div>
 
+<script>
+  // Show any script error directly on the page instead of a blank screen.
+  window.addEventListener('error', function (e) {
+    var root = document.getElementById('root');
+    if (root && !root.textContent) {
+      root.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#5C4033;white-space:pre-wrap;">読み込み中にエラーが発生しました。このメッセージをそのまま送ってください:\n\n' +
+        (e.message || (e.error && e.error.message) || '不明なエラー') + '</div>';
+    }
+  });
+</script>
+
 <!-- React -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -304,9 +315,11 @@ function WeekendRotation() {
   const current = members[currentIndex % members.length];
   const memberById = (id) => members.find((m) => m.id === id);
 
+  const deepClone = (x) => JSON.parse(JSON.stringify(x));
+
   const update = (mutator) => {
     setState((prev) => {
-      const next = mutator(structuredClone(prev));
+      const next = mutator(deepClone(prev));
       persist(next);
       return next;
     });
