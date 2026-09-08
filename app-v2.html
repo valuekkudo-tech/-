@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>バリュー週末事業部</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F4F6F0; }
+  * { box-sizing: border-box; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div style="background:#7C9473;color:#fff;text-align:center;padding:6px;font-family:sans-serif;font-size:13px;">build v2 が表示されています</div>
+
+<div id="root"></div>
+
+<script>
+  // Show any script error directly on the page instead of a blank screen.
+  window.addEventListener('error', function (e) {
+    var root = document.getElementById('root');
+    if (root && !root.textContent) {
+      root.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#5C4033;white-space:pre-wrap;">読み込み中にエラーが発生しました。このメッセージをそのまま送ってください:\n\n' +
+        (e.message || (e.error && e.error.message) || '不明なエラー') + '</div>';
+    }
+  });
+</script>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Firebase (Realtime Database) -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+  // Your web app's Firebase configuration (same project as the other weekend app)
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFzPekM5FqYDbqu2xkpljHKu6jto0ZxZM",
+    authDomain: "value-weekend-pjt.firebaseapp.com",
+    databaseURL: "https://value-weekend-pjt-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "value-weekend-pjt",
+    storageBucket: "value-weekend-pjt.firebasestorage.app",
+    messagingSenderId: "127340124762",
+    appId: "1:127340124762:web:ce42c26a6010696fded663",
+    measurementId: "G-Z4QRQCWGBB"
+  };
+  firebase.initializeApp(firebaseConfig);
+  // Separate top-level node so this app's data never collides with the other weekend app.
+  window.__valueWeekendRef = firebase.database().ref("valueWeekendRotation/state");
+</script>
+
+<script>
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+const { useState, useEffect, useCallback, useMemo } = React;
+const PALETTE = ["#7C9473", "#C97B84", "#C9A227", "#8E7CC3", "#5B8FA3", "#A3B565", "#D98CA0", "#4F7C6D"];
+const INTERVAL_DAYS = 14;
+const FUTURE_OCCURRENCES = 10;
+const WEEKDAY_LABELS = ["\u65E5", "\u6708", "\u706B", "\u6C34", "\u6728", "\u91D1", "\u571F"];
+const AVATAR_MAX_DIM = 160;
+const emptyPlanDraft = { text: "", budget: "", place: "", time: "", items: "", flow: "", mapLink: "" };
+function uid() {
+  return Math.random().toString(36).slice(2, 9);
+}
+function nextSaturdayISO(from = /* @__PURE__ */ new Date()) {
+  const d = new Date(from);
+  const day = d.getDay();
+  const add = (6 - day + 7) % 7 || 7;
+  d.setDate(d.getDate() + add);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+function addDaysISO(iso, days) {
+  const d = /* @__PURE__ */ new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function isoOf(d) {
+  return d.toISOString().slice(0, 10);
+}
+function formatDateLabel(iso) {
+  const d = /* @__PURE__ */ new Date(iso + "T00:00:00");
+  return `${d.getMonth() + 1}\u6708${d.getDate()}\u65E5(${WEEKDAY_LABELS[d.getDay()]})`;
+}
+function fileToResizedDataUrl(file, maxDim = AVATAR_MAX_DIM) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("image load failed"));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else if (height >= width && height > maxDim) {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.78));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function defaultState() {
+  return {
+    members: [
+      { id: uid(), name: "\u3072\u3068\u308A\u76EE", color: PALETTE[0], photo: null },
+      { id: uid(), name: "\u3075\u305F\u308A\u76EE", color: PALETTE[1], photo: null },
+      { id: uid(), name: "\u307F\u3063\u3064\u76EE", color: PALETTE[2], photo: null }
+    ],
+    currentIndex: 0,
+    currentDate: nextSaturdayISO(),
+    ideaStock: [],
+    history: []
+  };
+}
+function buildOccurrenceMap(state) {
+  const map = /* @__PURE__ */ new Map();
+  for (const h of state.history) {
+    map.set(h.date, { date: h.date, memberId: h.memberId, plan: h.plan, decided: true });
+  }
+  for (let i = 0; i < FUTURE_OCCURRENCES; i++) {
+    const date = addDaysISO(state.currentDate, i * INTERVAL_DAYS);
+    if (!map.has(date)) {
+      const memberId = state.members[(state.currentIndex + i) % state.members.length].id;
+      map.set(date, { date, memberId, plan: null, decided: false });
+    }
+  }
+  return map;
+}
+function buildMonthGrid(year, month) {
+  const first = new Date(year, month, 1);
+  const startPad = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+function Avatar({ member, size, fontSize, ring }) {
+  const ringStyle = ring ? { padding: 2, background: "#B9C9AE", borderRadius: "50%" } : {};
+  const inner = !member ? /* @__PURE__ */ React.createElement("div", { style: { width: size, height: size, borderRadius: "50%", background: "#ccc", flexShrink: 0 } }) : member.photo ? /* @__PURE__ */ React.createElement(
+    "img",
+    {
+      src: member.photo,
+      alt: member.name,
+      style: { width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, display: "block" }
+    }
+  ) : /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      style: {
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: member.color,
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 600,
+        fontSize: fontSize || Math.round(size * 0.4),
+        flexShrink: 0
+      }
+    },
+    member.name.slice(0, 1)
+  );
+  return ring ? /* @__PURE__ */ React.createElement("div", { style: ringStyle }, inner) : inner;
+}
+function LeafShape({ x, y, angle, scale = 1, fill, veinColor }) {
+  return /* @__PURE__ */ React.createElement("g", { transform: `translate(${x} ${y}) rotate(${angle}) scale(${scale})` }, /* @__PURE__ */ React.createElement("path", { d: "M0,0 C-7,-5 -8,-15 0,-24 C8,-15 7,-5 0,0 Z", fill }), /* @__PURE__ */ React.createElement("path", { d: "M0,-2 C0,-9 0,-16 0,-22", stroke: veinColor, strokeWidth: "0.8", fill: "none", opacity: "0.7" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-8 C-2.5,-10 -3.5,-11 -4,-12", stroke: veinColor, strokeWidth: "0.6", fill: "none", opacity: "0.55" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-8 C2.5,-10 3.5,-11 4,-12", stroke: veinColor, strokeWidth: "0.6", fill: "none", opacity: "0.55" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-14 C-2,-16 -2.8,-16.5 -3.2,-17.3", stroke: veinColor, strokeWidth: "0.55", fill: "none", opacity: "0.5" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-14 C2,-16 2.8,-16.5 3.2,-17.3", stroke: veinColor, strokeWidth: "0.55", fill: "none", opacity: "0.5" }));
+}
+function LeafIcon({ size = 15, color = "#7C9473" }) {
+  return /* @__PURE__ */ React.createElement("svg", { width: size, height: size * 1.15, viewBox: "0 0 20 24", style: { flexShrink: 0 } }, /* @__PURE__ */ React.createElement("path", { d: "M10 23C4 20 2 13 6 5C13 6 18 11 17 18C16.5 21 12.5 23 10 23Z", fill: color }), /* @__PURE__ */ React.createElement("path", { d: "M10 22C9 17 9 10 9 5", stroke: "#fff", strokeWidth: "0.9", opacity: "0.55", strokeLinecap: "round" }));
+}
+function BotanicalBranch({ width = 260, height = 78, tone = "#8FA482", veinTone = "#F4F6F0" }) {
+  const stemD = "M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9";
+  const leaves = [
+    { x: 30, y: 58, angle: 205, s: 0.85 },
+    { x: 48, y: 42, angle: 25, s: 0.95 },
+    { x: 66, y: 34, angle: 210, s: 0.9 },
+    { x: 88, y: 22, angle: 20, s: 1 },
+    { x: 112, y: 18, angle: 205, s: 0.95 },
+    { x: 138, y: 14, angle: 15, s: 1 },
+    { x: 164, y: 12, angle: 200, s: 0.9 },
+    { x: 190, y: 11, angle: 20, s: 0.9 },
+    { x: 216, y: 10, angle: 205, s: 0.8 }
+  ];
+  return /* @__PURE__ */ React.createElement("svg", { width, height, viewBox: "0 0 260 78", fill: "none", style: { display: "block" } }, /* @__PURE__ */ React.createElement("path", { d: stemD, stroke: tone, strokeWidth: "1.3", fill: "none", opacity: "0.85" }), leaves.map((l, i) => /* @__PURE__ */ React.createElement(LeafShape, { key: i, x: l.x, y: l.y, angle: l.angle, scale: l.s, fill: tone, veinColor: veinTone })));
+}
+function WatermarkBranch() {
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      width: "420",
+      height: "620",
+      viewBox: "0 0 260 78",
+      style: { position: "absolute", top: -10, right: -90, opacity: 0.06, transform: "rotate(18deg)", pointerEvents: "none" }
+    },
+    /* @__PURE__ */ React.createElement("path", { d: "M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9", stroke: "#3B4636", strokeWidth: "1.1", fill: "none" }),
+    [
+      [30, 58, 205, 0.9],
+      [50, 40, 25, 1],
+      [70, 32, 210, 0.95],
+      [95, 20, 15, 1.05],
+      [120, 16, 200, 1],
+      [148, 13, 20, 1],
+      [176, 11, 205, 0.9],
+      [204, 10, 15, 0.9],
+      [230, 9, 200, 0.8]
+    ].map(([x, y, angle, s], i) => /* @__PURE__ */ React.createElement(LeafShape, { key: i, x, y, angle, scale: s, fill: "#3B4636", veinColor: "#F4F6F0" }))
+  );
+}
+function Divider() {
+  return /* @__PURE__ */ React.createElement("div", { style: styles.divider });
+}
+function WeekendRotation() {
+  const [state, setState] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [showDateEdit, setShowDateEdit] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
+  const [error, setError] = useState("");
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [editingMemberId, setEditingMemberId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [stockText, setStockText] = useState("");
+  const [planDraft, setPlanDraft] = useState(emptyPlanDraft);
+  const [chosenStockId, setChosenStockId] = useState(null);
+  const [showReassign, setShowReassign] = useState(false);
+  const persist = useCallback((next) => {
+    try {
+      window.__valueWeekendRef.set(next);
+    } catch (e) {
+      console.error("save failed", e);
+    }
+  }, []);
+  useEffect(() => {
+    const ref = window.__valueWeekendRef;
+    const handler = (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        const parsed = val;
+        parsed.members = (parsed.members || []).map((m) => __spreadValues({ photo: null }, m));
+        if (!parsed.ideaStock) parsed.ideaStock = [];
+        if (!parsed.history) parsed.history = [];
+        setState(parsed);
+      } else {
+        const init = defaultState();
+        setState(init);
+        ref.set(init);
+      }
+      setLoading(false);
+    };
+    ref.on("value", handler, (err) => {
+      console.error("firebase read failed", err);
+      setLoading(false);
+    });
+    return () => ref.off("value", handler);
+  }, []);
+  const occurrenceMap = useMemo(() => state ? buildOccurrenceMap(state) : /* @__PURE__ */ new Map(), [state]);
+  const todayRef = useMemo(() => /* @__PURE__ */ new Date(), []);
+  const viewDate = new Date(todayRef.getFullYear(), todayRef.getMonth() + monthOffset, 1);
+  const monthWeeks = useMemo(
+    () => buildMonthGrid(viewDate.getFullYear(), viewDate.getMonth()),
+    [viewDate.getFullYear(), viewDate.getMonth()]
+  );
+  const todayISO = isoOf(todayRef);
+  if (loading || !state) {
+    return /* @__PURE__ */ React.createElement("div", { style: styles.loadingWrap }, /* @__PURE__ */ React.createElement("div", { style: styles.loadingText }, "\u3088\u307F\u3053\u307F\u4E2D\u2026"));
+  }
+  const { members, currentIndex, currentDate, ideaStock, history } = state;
+  const current = members[currentIndex % members.length];
+  const memberById = (id) => members.find((m) => m.id === id);
+  const deepClone = (x) => JSON.parse(JSON.stringify(x));
+  const update = (mutator) => {
+    setState((prev) => {
+      const next = mutator(deepClone(prev));
+      persist(next);
+      return next;
+    });
+  };
+  const commitPlan = () => {
+    const text = planDraft.text.trim();
+    if (!text) {
+      setError("\u4E88\u5B9A\u306E\u5185\u5BB9\u3092\u5165\u529B\u3057\u3066\u306D");
+      return;
+    }
+    setError("");
+    update((s) => {
+      s.history = [
+        {
+          id: uid(),
+          memberId: s.members[s.currentIndex % s.members.length].id,
+          plan: text,
+          date: s.currentDate,
+          budget: planDraft.budget,
+          place: planDraft.place,
+          time: planDraft.time,
+          items: planDraft.items,
+          flow: planDraft.flow,
+          mapLink: planDraft.mapLink
+        },
+        ...s.history
+      ].slice(0, 60);
+      if (chosenStockId) {
+        s.ideaStock = s.ideaStock.filter((x) => x.id !== chosenStockId);
+      }
+      s.currentIndex = (s.currentIndex + 1) % s.members.length;
+      s.currentDate = addDaysISO(s.currentDate, INTERVAL_DAYS);
+      return s;
+    });
+    setPlanDraft(emptyPlanDraft);
+    setChosenStockId(null);
+  };
+  const skipOccurrence = () => {
+    update((s) => {
+      s.currentIndex = (s.currentIndex + 1) % s.members.length;
+      s.currentDate = addDaysISO(s.currentDate, INTERVAL_DAYS);
+      return s;
+    });
+    setPlanDraft(emptyPlanDraft);
+    setChosenStockId(null);
+  };
+  const applyDateChange = () => {
+    if (!dateDraft) return;
+    update((s) => {
+      s.currentDate = dateDraft;
+      return s;
+    });
+    setShowDateEdit(false);
+  };
+  const reassignCurrent = (memberId) => {
+    update((s) => {
+      const idx = s.members.findIndex((m) => m.id === memberId);
+      if (idx >= 0) s.currentIndex = idx;
+      return s;
+    });
+    setShowReassign(false);
+  };
+  const addMember = () => {
+    const name = newName.trim();
+    if (!name) return;
+    update((s) => {
+      const color = PALETTE[s.members.length % PALETTE.length];
+      s.members.push({ id: uid(), name, color, photo: null });
+      return s;
+    });
+    setNewName("");
+    setShowAdd(false);
+  };
+  const removeMember = (id) => {
+    if (members.length <= 2) return;
+    update((s) => {
+      const idx = s.members.findIndex((m) => m.id === id);
+      s.members = s.members.filter((m) => m.id !== id);
+      if (idx <= s.currentIndex) {
+        s.currentIndex = (s.currentIndex - 1 + s.members.length) % s.members.length;
+      } else {
+        s.currentIndex = s.currentIndex % s.members.length;
+      }
+      return s;
+    });
+  };
+  const startEditName = (m) => {
+    setEditingMemberId(m.id);
+    setEditDraft(m.name);
+  };
+  const commitEditName = () => {
+    const name = editDraft.trim();
+    if (name) {
+      update((s) => {
+        const m = s.members.find((x) => x.id === editingMemberId);
+        if (m) m.name = name;
+        return s;
+      });
+    }
+    setEditingMemberId(null);
+    setEditDraft("");
+  };
+  const handlePhotoSelect = async (memberId, file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("\u753B\u50CF\u30D5\u30A1\u30A4\u30EB\u3092\u9078\u3093\u3067\u306D");
+      return;
+    }
+    try {
+      setPhotoError("");
+      const dataUrl = await fileToResizedDataUrl(file);
+      update((s) => {
+        const m = s.members.find((x) => x.id === memberId);
+        if (m) m.photo = dataUrl;
+        return s;
+      });
+    } catch (e) {
+      setPhotoError("\u5199\u771F\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u305F\u3088");
+    }
+  };
+  const removePhoto = (memberId) => {
+    update((s) => {
+      const m = s.members.find((x) => x.id === memberId);
+      if (m) m.photo = null;
+      return s;
+    });
+  };
+  const addStockIdea = () => {
+    const text = stockText.trim();
+    if (!text) return;
+    update((s) => {
+      s.ideaStock.push({ id: uid(), text, ts: Date.now() });
+      return s;
+    });
+    setStockText("");
+  };
+  const removeStockIdea = (id) => {
+    update((s) => {
+      s.ideaStock = s.ideaStock.filter((x) => x.id !== id);
+      return s;
+    });
+  };
+  const drawLottery = () => {
+    if (ideaStock.length === 0) return;
+    const pick = ideaStock[Math.floor(Math.random() * ideaStock.length)];
+    setPlanDraft(__spreadProps(__spreadValues({}, emptyPlanDraft), { text: pick.text }));
+    setChosenStockId(pick.id);
+    setError("");
+  };
+  return /* @__PURE__ */ React.createElement("div", { style: styles.page }, /* @__PURE__ */ React.createElement(WatermarkBranch, null), /* @__PURE__ */ React.createElement("header", { style: styles.header }, /* @__PURE__ */ React.createElement(BotanicalBranch, { width: 230, height: 68 }), /* @__PURE__ */ React.createElement("h1", { style: styles.title }, "\u30D0\u30EA\u30E5\u30FC\u9031\u672B\u4E8B\u696D\u90E8"), /* @__PURE__ */ React.createElement("div", { style: styles.eyebrow }, "2\u9031\u9593\u306B1\u56DE\u30FB\u571F\u66DC\u958B\u50AC")), /* @__PURE__ */ React.createElement("section", { style: styles.calendarCard }, /* @__PURE__ */ React.createElement("div", { style: styles.calHeadRow }, /* @__PURE__ */ React.createElement("button", { style: styles.calNavBtn, onClick: () => setMonthOffset((v) => v - 1), "aria-label": "\u524D\u306E\u6708" }, "\u2039"), /* @__PURE__ */ React.createElement("div", { style: styles.calMonthLabel }, viewDate.getFullYear(), "\u5E74 ", viewDate.getMonth() + 1, "\u6708"), /* @__PURE__ */ React.createElement("button", { style: styles.calNavBtn, onClick: () => setMonthOffset((v) => v + 1), "aria-label": "\u6B21\u306E\u6708" }, "\u203A")), /* @__PURE__ */ React.createElement("div", { style: styles.calWeekdayRow }, WEEKDAY_LABELS.map((w) => /* @__PURE__ */ React.createElement("div", { key: w, style: styles.calWeekdayCell }, w))), monthWeeks.map((week, wi) => /* @__PURE__ */ React.createElement("div", { key: wi, style: styles.calWeekRow }, week.map((d, di) => {
+    if (!d) return /* @__PURE__ */ React.createElement("div", { key: di, style: styles.calCellEmpty });
+    const iso = isoOf(d);
+    const occ = occurrenceMap.get(iso);
+    const isToday = iso === todayISO;
+    const m = occ ? memberById(occ.memberId) : null;
+    return /* @__PURE__ */ React.createElement("div", { key: di, style: __spreadProps(__spreadValues({}, styles.calCell), { background: isToday ? "#F0EDE4" : "transparent" }) }, /* @__PURE__ */ React.createElement("div", { style: __spreadProps(__spreadValues({}, styles.calDateNum), { fontWeight: isToday ? 700 : 400, color: isToday ? "#3B4636" : "#8A9680" }) }, d.getDate()), occ && m && /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        title: `${m.name}${occ.decided ? "\u30FB\u6C7A\u5B9A\u6E08\u307F" : "\u30FB\u62C5\u5F53\u4E88\u5B9A"}`,
+        style: __spreadProps(__spreadValues({}, styles.calDot), { background: occ.decided ? m.color : "#fff", border: `1.6px solid ${m.color}` })
+      }
+    ));
+  }))), /* @__PURE__ */ React.createElement(Divider, null), /* @__PURE__ */ React.createElement("div", { style: styles.legendRow }, members.map((m) => /* @__PURE__ */ React.createElement("div", { key: m.id, style: styles.legendItem }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 16, fontSize: 9 }), /* @__PURE__ */ React.createElement("span", { style: styles.legendName }, m.name))))), /* @__PURE__ */ React.createElement("section", { style: styles.dateCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, /* @__PURE__ */ React.createElement(Avatar, { member: current, size: 36, fontSize: 14 }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.cardSub }, "\u6B21\u56DE\u306E\u958B\u50AC\u65E5\u30FB\u62C5\u5F53 ", current.name), /* @__PURE__ */ React.createElement("div", { style: styles.dateBig }, formatDateLabel(currentDate)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" } }, /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtnSmall, onClick: () => {
+    setDateDraft(currentDate);
+    setShowDateEdit((v) => !v);
+  } }, "\u65E5\u4ED8\u3092\u5909\u66F4"), /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtnSmall, onClick: () => setShowReassign((v) => !v) }, "\u62C5\u5F53\u3092\u5909\u66F4"))), showDateEdit && /* @__PURE__ */ React.createElement("div", { style: styles.dateEditRow }, /* @__PURE__ */ React.createElement("input", { type: "date", value: dateDraft, onChange: (e) => setDateDraft(e.target.value), style: styles.input }), /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtnSmall, onClick: applyDateChange }, "\u5909\u66F4\u3059\u308B")), showReassign && /* @__PURE__ */ React.createElement("div", { style: styles.dateEditRow }, /* @__PURE__ */ React.createElement("select", { style: styles.select, value: current.id, onChange: (e) => reassignCurrent(e.target.value) }, members.map((m) => /* @__PURE__ */ React.createElement("option", { key: m.id, value: m.id }, m.name)))), /* @__PURE__ */ React.createElement("div", { style: styles.loopRow }, members.map((m, i) => {
+    const isCurrent = i === currentIndex % members.length;
+    return /* @__PURE__ */ React.createElement("div", { key: m.id, style: styles.loopItem }, /* @__PURE__ */ React.createElement("div", { style: { borderRadius: "50%", transform: isCurrent ? "scale(1.1)" : "scale(1)", transition: "transform 0.2s ease" } }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 42, ring: isCurrent })), /* @__PURE__ */ React.createElement("div", { style: styles.chipLabel }, m.name), i < members.length - 1 && /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#C3D0B5" }));
+  })), /* @__PURE__ */ React.createElement("section", { style: styles.card }, /* @__PURE__ */ React.createElement("div", { style: styles.cardHeadRow }, /* @__PURE__ */ React.createElement(Avatar, { member: current, size: 48, fontSize: 18, ring: true }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.badge }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 11, color: "#7C9473" }), "\u62C5\u5F53"), /* @__PURE__ */ React.createElement("div", { style: styles.cardName }, current.name))), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u4ECA\u56DE\u3084\u308B\u3053\u3068"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      value: planDraft.text,
+      onChange: (e) => {
+        setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { text: e.target.value }));
+        if (error) setError("");
+        setChosenStockId(null);
+      },
+      placeholder: "\u4F8B\uFF1A\u8FD1\u304F\u306E\u516C\u5712\u3067\u30D4\u30AF\u30CB\u30C3\u30AF\u3059\u308B",
+      style: styles.textarea,
+      rows: 3
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8 } }, /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtnSmall, onClick: drawLottery, disabled: ideaStock.length === 0 }, "\u30B9\u30C8\u30C3\u30AF\u304B\u3089\u9078\u3076")), error && /* @__PURE__ */ React.createElement("div", { style: styles.errorText }, error), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u4E88\u7B97"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "\u4F8B\uFF1A1\u4EBA2000\u5186",
+      value: planDraft.budget,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { budget: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u96C6\u5408\u5834\u6240"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "\u4F8B\uFF1A\u3007\u3007\u99C5 \u6771\u53E3",
+      value: planDraft.place,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { place: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u96C6\u5408\u6642\u9593"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "\u4F8B\uFF1A10:00",
+      value: planDraft.time,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { time: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u6301\u3061\u7269"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      style: styles.textarea,
+      rows: 2,
+      placeholder: "\u4F8B\uFF1A\u30EC\u30B8\u30E3\u30FC\u30B7\u30FC\u30C8\u3001\u98F2\u307F\u7269",
+      value: planDraft.items,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { items: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u305D\u306E\u65E5\u306E\u6D41\u308C"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      style: styles.textarea,
+      rows: 3,
+      placeholder: "\u4F8B\uFF1A10\u6642\u96C6\u5408\u2192\u516C\u5712\u3067\u304A\u663C\u219215\u6642\u89E3\u6563",
+      value: planDraft.flow,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { flow: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u5730\u56F3\u30EA\u30F3\u30AF"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "https://maps.google.com/...",
+      value: planDraft.mapLink,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { mapLink: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: styles.btnRow }, /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtn, onClick: commitPlan }, "\u3053\u306E\u5185\u5BB9\u3067\u6C7A\u5B9A\u3059\u308B"), /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtn, onClick: skipOccurrence }, "\u4ECA\u56DE\u306F\u304A\u4F11\u307F"))), /* @__PURE__ */ React.createElement("section", { style: styles.card }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionTitle }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#9CB08D" }), " \u3084\u308A\u305F\u3044\u3053\u3068\u30B9\u30C8\u30C3\u30AF"), /* @__PURE__ */ React.createElement("div", { style: styles.subtext }, "\u601D\u3044\u3064\u304B\u306A\u3044\u3068\u304D\u306F\u3053\u3053\u304B\u3089\u9078\u3079\u307E\u3059"), ideaStock.length > 0 && /* @__PURE__ */ React.createElement("ul", { style: styles.stockList }, ideaStock.map((it) => /* @__PURE__ */ React.createElement("li", { key: it.id, style: styles.stockRow }, /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }, it.text), /* @__PURE__ */ React.createElement("button", { style: styles.tinyGhostBtn, onClick: () => removeStockIdea(it.id) }, "\u524A\u9664")))), /* @__PURE__ */ React.createElement("div", { style: styles.formBlock }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u3084\u308A\u305F\u3044\u3053\u3068"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      style: styles.textarea,
+      rows: 2,
+      placeholder: "\u4F8B\uFF1A\u6C34\u65CF\u9928\u306B\u884C\u304D\u305F\u3044",
+      value: stockText,
+      onChange: (e) => setStockText(e.target.value)
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: styles.btnRow }, /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtn, onClick: addStockIdea }, "\u30B9\u30C8\u30C3\u30AF\u306B\u8FFD\u52A0")))), /* @__PURE__ */ React.createElement("section", { style: styles.membersSection }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeadRow }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionTitle }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#9CB08D" }), " \u30E1\u30F3\u30D0\u30FC\uFF08", members.length, "\u4EBA\uFF09"), /* @__PURE__ */ React.createElement("button", { style: styles.addBtn, onClick: () => setShowAdd((v) => !v) }, showAdd ? "\u9589\u3058\u308B" : "+ \u8FFD\u52A0")), showAdd && /* @__PURE__ */ React.createElement("div", { style: styles.addRow }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: newName,
+      onChange: (e) => setNewName(e.target.value),
+      placeholder: "\u540D\u524D\u3092\u5165\u529B",
+      style: styles.input,
+      onKeyDown: (e) => e.key === "Enter" && addMember()
+    }
+  ), /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtnSmall, onClick: addMember }, "\u8FFD\u52A0\u3059\u308B")), photoError && /* @__PURE__ */ React.createElement("div", { style: styles.errorText }, photoError), /* @__PURE__ */ React.createElement("ul", { style: styles.memberList }, members.map((m) => /* @__PURE__ */ React.createElement("li", { key: m.id, style: styles.memberRowRich }, /* @__PURE__ */ React.createElement("label", { className: "wr-photo-label", title: "\u5199\u771F\u3092\u5909\u66F4", style: { cursor: "pointer", display: "inline-flex" } }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 36, fontSize: 14 }), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "file",
+      accept: "image/*",
+      style: { display: "none" },
+      onChange: (e) => handlePhotoSelect(m.id, e.target.files && e.target.files[0])
+    }
+  )), editingMemberId === m.id ? /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: editDraft,
+      onChange: (e) => setEditDraft(e.target.value),
+      onKeyDown: (e) => e.key === "Enter" && commitEditName(),
+      onBlur: commitEditName,
+      autoFocus: true,
+      style: styles.nameEditInput
+    }
+  ) : /* @__PURE__ */ React.createElement("span", { style: styles.memberName, onClick: () => startEditName(m), title: "\u30BF\u30C3\u30D7\u3057\u3066\u540D\u524D\u3092\u5909\u66F4" }, m.name), m.photo && /* @__PURE__ */ React.createElement("button", { style: styles.tinyGhostBtn, onClick: () => removePhoto(m.id) }, "\u5199\u771F\u3092\u524A\u9664"), /* @__PURE__ */ React.createElement("button", { style: styles.editBtn, onClick: () => startEditName(m), "aria-label": `${m.name}\u306E\u540D\u524D\u3092\u7DE8\u96C6` }, "\u270E"), members.length > 2 && /* @__PURE__ */ React.createElement("button", { style: styles.removeBtn, onClick: () => removeMember(m.id), "aria-label": `${m.name}\u3092\u524A\u9664` }, "\xD7"))))), /* @__PURE__ */ React.createElement("section", { style: styles.historySection }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionTitle }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#9CB08D" }), " \u3053\u308C\u307E\u3067\u306E\u8A18\u9332"), history.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: styles.emptyState }, "\u307E\u3060\u8A18\u9332\u304C\u306A\u3044\u3088\u3002\u6C7A\u5B9A\u3059\u308B\u3068\u3001\u3053\u3053\u306B\u6B8B\u3063\u3066\u3044\u304F\u3088\u3002") : /* @__PURE__ */ React.createElement("ul", { style: styles.historyList }, history.map((h) => {
+    const m = memberById(h.memberId);
+    return /* @__PURE__ */ React.createElement("li", { key: h.id, style: styles.historyRowRich }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 24, fontSize: 11 }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: styles.historyMeta }, m ? m.name : "\u5143\u30E1\u30F3\u30D0\u30FC", " \u30FB ", formatDateLabel(h.date)), /* @__PURE__ */ React.createElement("div", { style: styles.historyPlan }, h.plan))), (h.budget || h.place || h.time || h.items || h.flow || h.mapLink) && /* @__PURE__ */ React.createElement("div", { style: styles.detailGrid }, h.budget && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u4E88\u7B97"), h.budget), h.place && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u5834\u6240"), h.place), h.time && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u6642\u9593"), h.time), h.items && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u6301\u3061\u7269"), h.items), h.flow && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u6D41\u308C"), h.flow), h.mapLink && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u5730\u56F3"), /* @__PURE__ */ React.createElement("a", { href: h.mapLink, target: "_blank", rel: "noopener noreferrer", style: styles.mapLink }, "\u958B\u304F"))));
+  }))), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, "\u3053\u306E\u30C7\u30FC\u30BF\u306F\u53C2\u52A0\u8005\u5168\u54E1\u3067\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u306B\u5171\u6709\u3055\u308C\u307E\u3059"));
+}
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "#F4F6F0",
+    color: "#3B4636",
+    fontFamily: "'Zen Maru Gothic', 'Hiragino Sans', 'Yu Gothic', sans-serif",
+    padding: "28px 18px 40px",
+    maxWidth: 480,
+    margin: "0 auto",
+    position: "relative",
+    overflow: "hidden"
+  },
+  loadingWrap: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6F0" },
+  loadingText: { color: "#8A9680", fontSize: 14 },
+  header: { marginBottom: 24, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 2, position: "relative" },
+  eyebrow: { fontSize: 12, color: "#8A9680", fontWeight: 500 },
+  title: { fontSize: 21, fontWeight: 700, margin: "2px 0 0", color: "#3B4636", letterSpacing: "0.02em" },
+  calendarCard: { background: "#FFFFFF", borderRadius: 18, padding: "16px 14px", boxShadow: "0 2px 10px rgba(124,148,115,0.08)", marginBottom: 16, position: "relative" },
+  calHeadRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  calMonthLabel: { fontSize: 14, fontWeight: 700, color: "#3B4636" },
+  calNavBtn: { background: "#F1F4EC", border: "none", borderRadius: 999, width: 28, height: 28, fontSize: 15, color: "#7C9473", cursor: "pointer" },
+  calWeekdayRow: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 2 },
+  calWeekdayCell: { textAlign: "center", fontSize: 10.5, color: "#A3AF97", fontWeight: 600 },
+  calWeekRow: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)" },
+  calCell: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3px 0", gap: 3, minHeight: 36, borderRadius: 8 },
+  calCellEmpty: { minHeight: 36 },
+  calDateNum: { fontSize: 11.5 },
+  calDot: { width: 10, height: 10, borderRadius: "50%" },
+  divider: { height: 1, background: "#EEF1E8", margin: "12px 0" },
+  legendRow: { display: "flex", flexWrap: "wrap", gap: 10 },
+  legendItem: { display: "flex", alignItems: "center", gap: 5 },
+  legendName: { fontSize: 11.5, color: "#6E7C63" },
+  dateCard: { background: "#FFFFFF", borderRadius: 18, padding: "13px 15px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(124,148,115,0.08)", marginBottom: 8, gap: 10, flexWrap: "wrap" },
+  dateBig: { fontSize: 17, fontWeight: 700, color: "#3B4636" },
+  dateEditRow: { display: "flex", gap: 8, marginBottom: 14 },
+  loopRow: { display: "flex", alignItems: "center", flexWrap: "wrap", margin: "18px 0 22px", gap: 2 },
+  loopItem: { display: "flex", alignItems: "center", position: "relative" },
+  chipLabel: { fontSize: 10.5, color: "#6E7C63", maxWidth: 52, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", position: "absolute", top: 48, left: "50%", transform: "translateX(-50%)" },
+  card: { background: "#FFFFFF", borderRadius: 20, padding: 20, boxShadow: "0 2px 12px rgba(124,148,115,0.08)", marginBottom: 20, marginTop: 16, position: "relative" },
+  cardHeadRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
+  cardSub: { fontSize: 11.5, color: "#8A9680" },
+  cardName: { fontSize: 18, fontWeight: 700, color: "#3B4636", marginTop: 3 },
+  badge: { display: "inline-flex", alignItems: "center", gap: 4, background: "#EEF3E6", color: "#7C9473", fontSize: 11, fontWeight: 700, padding: "2px 9px 2px 7px", borderRadius: 999 },
+  sectionTitle: { fontSize: 13.5, fontWeight: 700, color: "#5C6952", display: "flex", alignItems: "center", gap: 6 },
+  subtext: { fontSize: 11.5, color: "#8A9680", marginTop: 2, marginBottom: 12 },
+  stockList: { listStyle: "none", padding: 0, margin: "0 0 14px", display: "flex", flexDirection: "column", gap: 6 },
+  stockRow: { display: "flex", alignItems: "center", gap: 10, background: "#F6F8F2", borderRadius: 10, padding: "8px 12px", fontSize: 13.5, color: "#3B4636" },
+  formBlock: { borderTop: "1px solid #EEF1E8", paddingTop: 14, marginTop: 4 },
+  label: { display: "block", fontSize: 12.5, color: "#7C9473", marginBottom: 6, fontWeight: 600, marginTop: 12 },
+  select: { width: "100%", border: "1px solid #E1E7D9", borderRadius: 12, padding: "9px 12px", fontSize: 14, color: "#3B4636", background: "#F6F8F2" },
+  textarea: { width: "100%", border: "1px solid #E1E7D9", borderRadius: 14, padding: "10px 12px", fontSize: 14.5, fontFamily: "inherit", resize: "vertical", color: "#3B4636", background: "#F6F8F2" },
+  errorText: { color: "#B45B4F", fontSize: 12, marginTop: 6 },
+  btnRow: { display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" },
+  primaryBtn: { background: "#7C9473", color: "#fff", border: "none", borderRadius: 999, padding: "10px 18px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", flex: 1 },
+  primaryBtnSmall: { background: "#7C9473", color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" },
+  ghostBtn: { background: "transparent", color: "#8A9680", border: "1px solid #E1E7D9", borderRadius: 999, padding: "10px 16px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
+  ghostBtnSmall: { background: "transparent", color: "#7C9473", border: "1px solid #D7E2CA", borderRadius: 999, padding: "6px 13px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
+  membersSection: { marginBottom: 20 },
+  sectionHeadRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  addBtn: { background: "transparent", color: "#7C9473", border: "1px solid #D7E2CA", borderRadius: 999, padding: "4px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" },
+  addRow: { display: "flex", gap: 8, marginBottom: 10 },
+  input: { width: "100%", border: "1px solid #E1E7D9", borderRadius: 12, padding: "9px 12px", fontSize: 14, color: "#3B4636", background: "#fff" },
+  memberList: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 },
+  memberRowRich: { display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF", borderRadius: 14, padding: "7px 12px", boxShadow: "0 1px 6px rgba(124,148,115,0.06)", flexWrap: "wrap" },
+  memberName: { fontSize: 13.5, color: "#3B4636", flex: 1, cursor: "pointer", borderBottom: "1px dashed #D0DAC4" },
+  nameEditInput: { flex: 1, border: "1px solid #7C9473", borderRadius: 10, padding: "5px 8px", fontSize: 13.5, color: "#3B4636", minWidth: 80 },
+  editBtn: { background: "transparent", border: "none", color: "#A3AF97", fontSize: 13, cursor: "pointer", padding: "2px 4px" },
+  removeBtn: { background: "transparent", border: "none", color: "#A3AF97", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "2px 6px" },
+  tinyGhostBtn: { background: "transparent", border: "1px solid #E1E7D9", color: "#8A9680", fontSize: 10, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" },
+  historySection: { marginBottom: 12 },
+  historyList: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 },
+  historyRowRich: { display: "flex", flexDirection: "column", gap: 8, background: "#FFFFFF", borderRadius: 14, padding: "12px 14px", boxShadow: "0 1px 6px rgba(124,148,115,0.06)" },
+  historyMeta: { fontSize: 10.5, color: "#8A9680", marginBottom: 2 },
+  historyPlan: { fontSize: 13.5, color: "#3B4636", wordBreak: "break-word" },
+  detailGrid: { display: "flex", flexDirection: "column", gap: 4, background: "#F6F8F2", borderRadius: 10, padding: "8px 10px" },
+  detailRow: { fontSize: 12, color: "#5C6952", wordBreak: "break-word" },
+  detailLabel: { color: "#8A9680", marginRight: 6 },
+  mapLink: { color: "#5B8FA3", fontWeight: 700, textDecoration: "underline" },
+  emptyState: { fontSize: 12.5, color: "#8A9680", background: "#F6F8F2", borderRadius: 12, padding: "14px", lineHeight: 1.6 },
+  footer: { textAlign: "center", fontSize: 10.5, color: "#A3AF97", marginTop: 20 }
+};
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(/* @__PURE__ */ React.createElement(WeekendRotation, null));
+
+</script>
+</body>
+</html>
