@@ -29,7 +29,6 @@
 <!-- React -->
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <!-- Firebase (Realtime Database) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -52,21 +51,37 @@
   window.__valueWeekendRef = firebase.database().ref("valueWeekendRotation/state");
 </script>
 
-<script type="text/babel" data-presets="react">
+<script>
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 const { useState, useEffect, useCallback, useMemo } = React;
-
 const PALETTE = ["#7C9473", "#C97B84", "#C9A227", "#8E7CC3", "#5B8FA3", "#A3B565", "#D98CA0", "#4F7C6D"];
 const INTERVAL_DAYS = 14;
 const FUTURE_OCCURRENCES = 10;
-const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const WEEKDAY_LABELS = ["\u65E5", "\u6708", "\u706B", "\u6C34", "\u6728", "\u91D1", "\u571F"];
 const AVATAR_MAX_DIM = 160;
 const emptyPlanDraft = { text: "", budget: "", place: "", time: "", items: "", flow: "", mapLink: "" };
-
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
-
-function nextSaturdayISO(from = new Date()) {
+function nextSaturdayISO(from = /* @__PURE__ */ new Date()) {
   const d = new Date(from);
   const day = d.getDay();
   const add = (6 - day + 7) % 7 || 7;
@@ -74,22 +89,18 @@ function nextSaturdayISO(from = new Date()) {
   d.setHours(0, 0, 0, 0);
   return d.toISOString().slice(0, 10);
 }
-
 function addDaysISO(iso, days) {
-  const d = new Date(iso + "T00:00:00");
+  const d = /* @__PURE__ */ new Date(iso + "T00:00:00");
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
-
 function isoOf(d) {
   return d.toISOString().slice(0, 10);
 }
-
 function formatDateLabel(iso) {
-  const d = new Date(iso + "T00:00:00");
-  return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAY_LABELS[d.getDay()]})`;
+  const d = /* @__PURE__ */ new Date(iso + "T00:00:00");
+  return `${d.getMonth() + 1}\u6708${d.getDate()}\u65E5(${WEEKDAY_LABELS[d.getDay()]})`;
 }
-
 function fileToResizedDataUrl(file, maxDim = AVATAR_MAX_DIM) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -118,23 +129,21 @@ function fileToResizedDataUrl(file, maxDim = AVATAR_MAX_DIM) {
     reader.readAsDataURL(file);
   });
 }
-
 function defaultState() {
   return {
     members: [
-      { id: uid(), name: "ひとり目", color: PALETTE[0], photo: null },
-      { id: uid(), name: "ふたり目", color: PALETTE[1], photo: null },
-      { id: uid(), name: "みっつ目", color: PALETTE[2], photo: null },
+      { id: uid(), name: "\u3072\u3068\u308A\u76EE", color: PALETTE[0], photo: null },
+      { id: uid(), name: "\u3075\u305F\u308A\u76EE", color: PALETTE[1], photo: null },
+      { id: uid(), name: "\u307F\u3063\u3064\u76EE", color: PALETTE[2], photo: null }
     ],
     currentIndex: 0,
     currentDate: nextSaturdayISO(),
     ideaStock: [],
-    history: [],
+    history: []
   };
 }
-
 function buildOccurrenceMap(state) {
-  const map = new Map();
+  const map = /* @__PURE__ */ new Map();
   for (const h of state.history) {
     map.set(h.date, { date: h.date, memberId: h.memberId, plan: h.plan, decided: true });
   }
@@ -147,7 +156,6 @@ function buildOccurrenceMap(state) {
   }
   return map;
 }
-
 function buildMonthGrid(year, month) {
   const first = new Date(year, month, 1);
   const startPad = first.getDay();
@@ -160,91 +168,83 @@ function buildMonthGrid(year, month) {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
   return weeks;
 }
-
 function Avatar({ member, size, fontSize, ring }) {
-  const ringStyle = ring
-    ? { padding: 2, background: "#B9C9AE", borderRadius: "50%" }
-    : {};
-  const inner = !member ? (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: "#ccc", flexShrink: 0 }} />
-  ) : member.photo ? (
-    <img
-      src={member.photo}
-      alt={member.name}
-      style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, display: "block" }}
-    />
-  ) : (
-    <div
-      style={{
-        width: size, height: size, borderRadius: "50%", background: member.color, color: "#fff",
-        display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600,
-        fontSize: fontSize || Math.round(size * 0.4), flexShrink: 0,
-      }}
-    >
-      {member.name.slice(0, 1)}
-    </div>
+  const ringStyle = ring ? { padding: 2, background: "#B9C9AE", borderRadius: "50%" } : {};
+  const inner = !member ? /* @__PURE__ */ React.createElement("div", { style: { width: size, height: size, borderRadius: "50%", background: "#ccc", flexShrink: 0 } }) : member.photo ? /* @__PURE__ */ React.createElement(
+    "img",
+    {
+      src: member.photo,
+      alt: member.name,
+      style: { width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, display: "block" }
+    }
+  ) : /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      style: {
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: member.color,
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 600,
+        fontSize: fontSize || Math.round(size * 0.4),
+        flexShrink: 0
+      }
+    },
+    member.name.slice(0, 1)
   );
-  return ring ? <div style={ringStyle}>{inner}</div> : inner;
+  return ring ? /* @__PURE__ */ React.createElement("div", { style: ringStyle }, inner) : inner;
 }
-
 function LeafShape({ x, y, angle, scale = 1, fill, veinColor }) {
-  return (
-    <g transform={`translate(${x} ${y}) rotate(${angle}) scale(${scale})`}>
-      <path d="M0,0 C-7,-5 -8,-15 0,-24 C8,-15 7,-5 0,0 Z" fill={fill} />
-      <path d="M0,-2 C0,-9 0,-16 0,-22" stroke={veinColor} strokeWidth="0.8" fill="none" opacity="0.7" />
-      <path d="M0,-8 C-2.5,-10 -3.5,-11 -4,-12" stroke={veinColor} strokeWidth="0.6" fill="none" opacity="0.55" />
-      <path d="M0,-8 C2.5,-10 3.5,-11 4,-12" stroke={veinColor} strokeWidth="0.6" fill="none" opacity="0.55" />
-      <path d="M0,-14 C-2,-16 -2.8,-16.5 -3.2,-17.3" stroke={veinColor} strokeWidth="0.55" fill="none" opacity="0.5" />
-      <path d="M0,-14 C2,-16 2.8,-16.5 3.2,-17.3" stroke={veinColor} strokeWidth="0.55" fill="none" opacity="0.5" />
-    </g>
-  );
+  return /* @__PURE__ */ React.createElement("g", { transform: `translate(${x} ${y}) rotate(${angle}) scale(${scale})` }, /* @__PURE__ */ React.createElement("path", { d: "M0,0 C-7,-5 -8,-15 0,-24 C8,-15 7,-5 0,0 Z", fill }), /* @__PURE__ */ React.createElement("path", { d: "M0,-2 C0,-9 0,-16 0,-22", stroke: veinColor, strokeWidth: "0.8", fill: "none", opacity: "0.7" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-8 C-2.5,-10 -3.5,-11 -4,-12", stroke: veinColor, strokeWidth: "0.6", fill: "none", opacity: "0.55" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-8 C2.5,-10 3.5,-11 4,-12", stroke: veinColor, strokeWidth: "0.6", fill: "none", opacity: "0.55" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-14 C-2,-16 -2.8,-16.5 -3.2,-17.3", stroke: veinColor, strokeWidth: "0.55", fill: "none", opacity: "0.5" }), /* @__PURE__ */ React.createElement("path", { d: "M0,-14 C2,-16 2.8,-16.5 3.2,-17.3", stroke: veinColor, strokeWidth: "0.55", fill: "none", opacity: "0.5" }));
 }
-
 function LeafIcon({ size = 15, color = "#7C9473" }) {
-  return (
-    <svg width={size} height={size * 1.15} viewBox="0 0 20 24" style={{ flexShrink: 0 }}>
-      <path d="M10 23C4 20 2 13 6 5C13 6 18 11 17 18C16.5 21 12.5 23 10 23Z" fill={color} />
-      <path d="M10 22C9 17 9 10 9 5" stroke="#fff" strokeWidth="0.9" opacity="0.55" strokeLinecap="round" />
-    </svg>
-  );
+  return /* @__PURE__ */ React.createElement("svg", { width: size, height: size * 1.15, viewBox: "0 0 20 24", style: { flexShrink: 0 } }, /* @__PURE__ */ React.createElement("path", { d: "M10 23C4 20 2 13 6 5C13 6 18 11 17 18C16.5 21 12.5 23 10 23Z", fill: color }), /* @__PURE__ */ React.createElement("path", { d: "M10 22C9 17 9 10 9 5", stroke: "#fff", strokeWidth: "0.9", opacity: "0.55", strokeLinecap: "round" }));
 }
-
 function BotanicalBranch({ width = 260, height = 78, tone = "#8FA482", veinTone = "#F4F6F0" }) {
   const stemD = "M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9";
   const leaves = [
-    { x: 30, y: 58, angle: 205, s: 0.85 }, { x: 48, y: 42, angle: 25, s: 0.95 },
-    { x: 66, y: 34, angle: 210, s: 0.9 }, { x: 88, y: 22, angle: 20, s: 1 },
-    { x: 112, y: 18, angle: 205, s: 0.95 }, { x: 138, y: 14, angle: 15, s: 1 },
-    { x: 164, y: 12, angle: 200, s: 0.9 }, { x: 190, y: 11, angle: 20, s: 0.9 },
-    { x: 216, y: 10, angle: 205, s: 0.8 },
+    { x: 30, y: 58, angle: 205, s: 0.85 },
+    { x: 48, y: 42, angle: 25, s: 0.95 },
+    { x: 66, y: 34, angle: 210, s: 0.9 },
+    { x: 88, y: 22, angle: 20, s: 1 },
+    { x: 112, y: 18, angle: 205, s: 0.95 },
+    { x: 138, y: 14, angle: 15, s: 1 },
+    { x: 164, y: 12, angle: 200, s: 0.9 },
+    { x: 190, y: 11, angle: 20, s: 0.9 },
+    { x: 216, y: 10, angle: 205, s: 0.8 }
   ];
-  return (
-    <svg width={width} height={height} viewBox="0 0 260 78" fill="none" style={{ display: "block" }}>
-      <path d={stemD} stroke={tone} strokeWidth="1.3" fill="none" opacity="0.85" />
-      {leaves.map((l, i) => (<LeafShape key={i} x={l.x} y={l.y} angle={l.angle} scale={l.s} fill={tone} veinColor={veinTone} />))}
-    </svg>
-  );
+  return /* @__PURE__ */ React.createElement("svg", { width, height, viewBox: "0 0 260 78", fill: "none", style: { display: "block" } }, /* @__PURE__ */ React.createElement("path", { d: stemD, stroke: tone, strokeWidth: "1.3", fill: "none", opacity: "0.85" }), leaves.map((l, i) => /* @__PURE__ */ React.createElement(LeafShape, { key: i, x: l.x, y: l.y, angle: l.angle, scale: l.s, fill: tone, veinColor: veinTone })));
 }
-
 function WatermarkBranch() {
-  return (
-    <svg width="420" height="620" viewBox="0 0 260 78"
-      style={{ position: "absolute", top: -10, right: -90, opacity: 0.06, transform: "rotate(18deg)", pointerEvents: "none" }}>
-      <path d="M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9" stroke="#3B4636" strokeWidth="1.1" fill="none" />
-      {[
-        [30, 58, 205, 0.9], [50, 40, 25, 1], [70, 32, 210, 0.95], [95, 20, 15, 1.05],
-        [120, 16, 200, 1], [148, 13, 20, 1], [176, 11, 205, 0.9], [204, 10, 15, 0.9], [230, 9, 200, 0.8],
-      ].map(([x, y, angle, s], i) => (
-        <LeafShape key={i} x={x} y={y} angle={angle} scale={s} fill="#3B4636" veinColor="#F4F6F0" />
-      ))}
-    </svg>
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      width: "420",
+      height: "620",
+      viewBox: "0 0 260 78",
+      style: { position: "absolute", top: -10, right: -90, opacity: 0.06, transform: "rotate(18deg)", pointerEvents: "none" }
+    },
+    /* @__PURE__ */ React.createElement("path", { d: "M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9", stroke: "#3B4636", strokeWidth: "1.1", fill: "none" }),
+    [
+      [30, 58, 205, 0.9],
+      [50, 40, 25, 1],
+      [70, 32, 210, 0.95],
+      [95, 20, 15, 1.05],
+      [120, 16, 200, 1],
+      [148, 13, 20, 1],
+      [176, 11, 205, 0.9],
+      [204, 10, 15, 0.9],
+      [230, 9, 200, 0.8]
+    ].map(([x, y, angle, s], i) => /* @__PURE__ */ React.createElement(LeafShape, { key: i, x, y, angle, scale: s, fill: "#3B4636", veinColor: "#F4F6F0" }))
   );
 }
-
 function Divider() {
-  return <div style={styles.divider} />;
+  return /* @__PURE__ */ React.createElement("div", { style: styles.divider });
 }
-
 function WeekendRotation() {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -261,7 +261,6 @@ function WeekendRotation() {
   const [planDraft, setPlanDraft] = useState(emptyPlanDraft);
   const [chosenStockId, setChosenStockId] = useState(null);
   const [showReassign, setShowReassign] = useState(false);
-
   const persist = useCallback((next) => {
     try {
       window.__valueWeekendRef.set(next);
@@ -269,14 +268,15 @@ function WeekendRotation() {
       console.error("save failed", e);
     }
   }, []);
-
   useEffect(() => {
     const ref = window.__valueWeekendRef;
+    let settled = false;
     const handler = (snapshot) => {
+      settled = true;
       const val = snapshot.val();
       if (val) {
         const parsed = val;
-        parsed.members = (parsed.members || []).map((m) => ({ photo: null, ...m }));
+        parsed.members = (parsed.members || []).map((m) => __spreadValues({ photo: null }, m));
         if (!parsed.ideaStock) parsed.ideaStock = [];
         if (!parsed.history) parsed.history = [];
         setState(parsed);
@@ -288,35 +288,42 @@ function WeekendRotation() {
       setLoading(false);
     };
     ref.on("value", handler, (err) => {
+      settled = true;
       console.error("firebase read failed", err);
+      const rootEl = document.getElementById("root");
+      if (rootEl) {
+        rootEl.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#5C4033;white-space:pre-wrap;">\u30C7\u30FC\u30BF\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u3053\u306E\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u305D\u306E\u307E\u307E\u9001\u3063\u3066\u304F\u3060\u3055\u3044:\n\n' + (err && err.message ? err.message : String(err)) + "</div>";
+      }
       setLoading(false);
     });
-    return () => ref.off("value", handler);
+    const timeoutId = setTimeout(() => {
+      if (!settled) {
+        const rootEl = document.getElementById("root");
+        if (rootEl) {
+          rootEl.innerHTML = '<div style="padding:24px;font-family:sans-serif;color:#5C4033;white-space:pre-wrap;">10\u79D2\u305F\u3063\u3066\u3082\u30C7\u30FC\u30BF\u30D9\u30FC\u30B9\u304B\u3089\u5FDC\u7B54\u304C\u3042\u308A\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u3053\u306E\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u305D\u306E\u307E\u307E\u9001\u3063\u3066\u304F\u3060\u3055\u3044\u3002\uFF08\u30CD\u30C3\u30C8\u30EF\u30FC\u30AF\u304C\u63A5\u7D9A\u3092\u30D6\u30ED\u30C3\u30AF\u3057\u3066\u3044\u308B\u53EF\u80FD\u6027\u304C\u3042\u308A\u307E\u3059\uFF09</div>';
+        }
+      }
+    }, 1e4);
+    return () => {
+      ref.off("value", handler);
+      clearTimeout(timeoutId);
+    };
   }, []);
-
-  const occurrenceMap = useMemo(() => (state ? buildOccurrenceMap(state) : new Map()), [state]);
-  const todayRef = useMemo(() => new Date(), []);
+  const occurrenceMap = useMemo(() => state ? buildOccurrenceMap(state) : /* @__PURE__ */ new Map(), [state]);
+  const todayRef = useMemo(() => /* @__PURE__ */ new Date(), []);
   const viewDate = new Date(todayRef.getFullYear(), todayRef.getMonth() + monthOffset, 1);
   const monthWeeks = useMemo(
     () => buildMonthGrid(viewDate.getFullYear(), viewDate.getMonth()),
     [viewDate.getFullYear(), viewDate.getMonth()]
   );
   const todayISO = isoOf(todayRef);
-
   if (loading || !state) {
-    return (
-      <div style={styles.loadingWrap}>
-        <div style={styles.loadingText}>よみこみ中…</div>
-      </div>
-    );
+    return /* @__PURE__ */ React.createElement("div", { style: styles.loadingWrap }, /* @__PURE__ */ React.createElement("div", { style: styles.loadingText }, "\u3088\u307F\u3053\u307F\u4E2D\u2026"));
   }
-
   const { members, currentIndex, currentDate, ideaStock, history } = state;
   const current = members[currentIndex % members.length];
   const memberById = (id) => members.find((m) => m.id === id);
-
   const deepClone = (x) => JSON.parse(JSON.stringify(x));
-
   const update = (mutator) => {
     setState((prev) => {
       const next = mutator(deepClone(prev));
@@ -324,17 +331,28 @@ function WeekendRotation() {
       return next;
     });
   };
-
   const commitPlan = () => {
     const text = planDraft.text.trim();
-    if (!text) { setError("予定の内容を入力してね"); return; }
+    if (!text) {
+      setError("\u4E88\u5B9A\u306E\u5185\u5BB9\u3092\u5165\u529B\u3057\u3066\u306D");
+      return;
+    }
     setError("");
     update((s) => {
       s.history = [
-        { id: uid(), memberId: s.members[s.currentIndex % s.members.length].id, plan: text, date: s.currentDate,
-          budget: planDraft.budget, place: planDraft.place, time: planDraft.time, items: planDraft.items,
-          flow: planDraft.flow, mapLink: planDraft.mapLink },
-        ...s.history,
+        {
+          id: uid(),
+          memberId: s.members[s.currentIndex % s.members.length].id,
+          plan: text,
+          date: s.currentDate,
+          budget: planDraft.budget,
+          place: planDraft.place,
+          time: planDraft.time,
+          items: planDraft.items,
+          flow: planDraft.flow,
+          mapLink: planDraft.mapLink
+        },
+        ...s.history
       ].slice(0, 60);
       if (chosenStockId) {
         s.ideaStock = s.ideaStock.filter((x) => x.id !== chosenStockId);
@@ -346,7 +364,6 @@ function WeekendRotation() {
     setPlanDraft(emptyPlanDraft);
     setChosenStockId(null);
   };
-
   const skipOccurrence = () => {
     update((s) => {
       s.currentIndex = (s.currentIndex + 1) % s.members.length;
@@ -356,13 +373,14 @@ function WeekendRotation() {
     setPlanDraft(emptyPlanDraft);
     setChosenStockId(null);
   };
-
   const applyDateChange = () => {
     if (!dateDraft) return;
-    update((s) => { s.currentDate = dateDraft; return s; });
+    update((s) => {
+      s.currentDate = dateDraft;
+      return s;
+    });
     setShowDateEdit(false);
   };
-
   const reassignCurrent = (memberId) => {
     update((s) => {
       const idx = s.members.findIndex((m) => m.id === memberId);
@@ -371,7 +389,6 @@ function WeekendRotation() {
     });
     setShowReassign(false);
   };
-
   const addMember = () => {
     const name = newName.trim();
     if (!name) return;
@@ -383,23 +400,23 @@ function WeekendRotation() {
     setNewName("");
     setShowAdd(false);
   };
-
   const removeMember = (id) => {
     if (members.length <= 2) return;
     update((s) => {
       const idx = s.members.findIndex((m) => m.id === id);
       s.members = s.members.filter((m) => m.id !== id);
       if (idx <= s.currentIndex) {
-        s.currentIndex = ((s.currentIndex - 1) + s.members.length) % s.members.length;
+        s.currentIndex = (s.currentIndex - 1 + s.members.length) % s.members.length;
       } else {
         s.currentIndex = s.currentIndex % s.members.length;
       }
       return s;
     });
   };
-
-  const startEditName = (m) => { setEditingMemberId(m.id); setEditDraft(m.name); };
-
+  const startEditName = (m) => {
+    setEditingMemberId(m.id);
+    setEditDraft(m.name);
+  };
   const commitEditName = () => {
     const name = editDraft.trim();
     if (name) {
@@ -412,10 +429,12 @@ function WeekendRotation() {
     setEditingMemberId(null);
     setEditDraft("");
   };
-
   const handlePhotoSelect = async (memberId, file) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setPhotoError("画像ファイルを選んでね"); return; }
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("\u753B\u50CF\u30D5\u30A1\u30A4\u30EB\u3092\u9078\u3093\u3067\u306D");
+      return;
+    }
     try {
       setPhotoError("");
       const dataUrl = await fileToResizedDataUrl(file);
@@ -425,10 +444,9 @@ function WeekendRotation() {
         return s;
       });
     } catch (e) {
-      setPhotoError("写真の読み込みに失敗したよ");
+      setPhotoError("\u5199\u771F\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u305F\u3088");
     }
   };
-
   const removePhoto = (memberId) => {
     update((s) => {
       const m = s.members.find((x) => x.id === memberId);
@@ -436,7 +454,6 @@ function WeekendRotation() {
       return s;
     });
   };
-
   const addStockIdea = () => {
     const text = stockText.trim();
     if (!text) return;
@@ -446,276 +463,154 @@ function WeekendRotation() {
     });
     setStockText("");
   };
-
   const removeStockIdea = (id) => {
     update((s) => {
       s.ideaStock = s.ideaStock.filter((x) => x.id !== id);
       return s;
     });
   };
-
   const drawLottery = () => {
     if (ideaStock.length === 0) return;
     const pick = ideaStock[Math.floor(Math.random() * ideaStock.length)];
-    setPlanDraft({ ...emptyPlanDraft, text: pick.text });
+    setPlanDraft(__spreadProps(__spreadValues({}, emptyPlanDraft), { text: pick.text }));
     setChosenStockId(pick.id);
     setError("");
   };
-
-  return (
-    <div style={styles.page}>
-      <WatermarkBranch />
-
-      <header style={styles.header}>
-        <BotanicalBranch width={230} height={68} />
-        <h1 style={styles.title}>バリュー週末事業部</h1>
-        <div style={styles.eyebrow}>2週間に1回・土曜開催</div>
-      </header>
-
-      <section style={styles.calendarCard}>
-        <div style={styles.calHeadRow}>
-          <button style={styles.calNavBtn} onClick={() => setMonthOffset((v) => v - 1)} aria-label="前の月">‹</button>
-          <div style={styles.calMonthLabel}>{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</div>
-          <button style={styles.calNavBtn} onClick={() => setMonthOffset((v) => v + 1)} aria-label="次の月">›</button>
-        </div>
-        <div style={styles.calWeekdayRow}>
-          {WEEKDAY_LABELS.map((w) => (<div key={w} style={styles.calWeekdayCell}>{w}</div>))}
-        </div>
-        {monthWeeks.map((week, wi) => (
-          <div key={wi} style={styles.calWeekRow}>
-            {week.map((d, di) => {
-              if (!d) return <div key={di} style={styles.calCellEmpty} />;
-              const iso = isoOf(d);
-              const occ = occurrenceMap.get(iso);
-              const isToday = iso === todayISO;
-              const m = occ ? memberById(occ.memberId) : null;
-              return (
-                <div key={di} style={{ ...styles.calCell, background: isToday ? "#F0EDE4" : "transparent" }}>
-                  <div style={{ ...styles.calDateNum, fontWeight: isToday ? 700 : 400, color: isToday ? "#3B4636" : "#8A9680" }}>
-                    {d.getDate()}
-                  </div>
-                  {occ && m && (
-                    <div title={`${m.name}${occ.decided ? "・決定済み" : "・担当予定"}`}
-                      style={{ ...styles.calDot, background: occ.decided ? m.color : "#fff", border: `1.6px solid ${m.color}` }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-        <Divider />
-        <div style={styles.legendRow}>
-          {members.map((m) => (
-            <div key={m.id} style={styles.legendItem}>
-              <Avatar member={m} size={16} fontSize={9} />
-              <span style={styles.legendName}>{m.name}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={styles.dateCard}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar member={current} size={36} fontSize={14} />
-          <div>
-            <div style={styles.cardSub}>次回の開催日・担当 {current.name}</div>
-            <div style={styles.dateBig}>{formatDateLabel(currentDate)}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-          <button style={styles.ghostBtnSmall} onClick={() => { setDateDraft(currentDate); setShowDateEdit((v) => !v); }}>日付を変更</button>
-          <button style={styles.ghostBtnSmall} onClick={() => setShowReassign((v) => !v)}>担当を変更</button>
-        </div>
-      </section>
-      {showDateEdit && (
-        <div style={styles.dateEditRow}>
-          <input type="date" value={dateDraft} onChange={(e) => setDateDraft(e.target.value)} style={styles.input} />
-          <button style={styles.primaryBtnSmall} onClick={applyDateChange}>変更する</button>
-        </div>
-      )}
-      {showReassign && (
-        <div style={styles.dateEditRow}>
-          <select style={styles.select} value={current.id} onChange={(e) => reassignCurrent(e.target.value)}>
-            {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-          </select>
-        </div>
-      )}
-
-      <div style={styles.loopRow}>
-        {members.map((m, i) => {
-          const isCurrent = i === currentIndex % members.length;
-          return (
-            <div key={m.id} style={styles.loopItem}>
-              <div style={{ borderRadius: "50%", transform: isCurrent ? "scale(1.1)" : "scale(1)", transition: "transform 0.2s ease" }}>
-                <Avatar member={m} size={42} ring={isCurrent} />
-              </div>
-              <div style={styles.chipLabel}>{m.name}</div>
-              {i < members.length - 1 && <LeafIcon size={12} color="#C3D0B5" />}
-            </div>
-          );
-        })}
-      </div>
-
-      <section style={styles.card}>
-        <div style={styles.cardHeadRow}>
-          <Avatar member={current} size={48} fontSize={18} ring />
-          <div>
-            <div style={styles.badge}><LeafIcon size={11} color="#7C9473" />担当</div>
-            <div style={styles.cardName}>{current.name}</div>
-          </div>
-        </div>
-
-        <label style={styles.label}>今回やること</label>
-        <textarea
-          value={planDraft.text}
-          onChange={(e) => { setPlanDraft({ ...planDraft, text: e.target.value }); if (error) setError(""); setChosenStockId(null); }}
-          placeholder="例：近くの公園でピクニックする" style={styles.textarea} rows={3} />
-        <div style={{ marginTop: 8 }}>
-          <button style={styles.ghostBtnSmall} onClick={drawLottery} disabled={ideaStock.length === 0}>ストックから選ぶ</button>
-        </div>
-        {error && <div style={styles.errorText}>{error}</div>}
-
-        <label style={styles.label}>予算</label>
-        <input style={styles.input} placeholder="例：1人2000円" value={planDraft.budget}
-          onChange={(e) => setPlanDraft({ ...planDraft, budget: e.target.value })} />
-
-        <label style={styles.label}>集合場所</label>
-        <input style={styles.input} placeholder="例：〇〇駅 東口" value={planDraft.place}
-          onChange={(e) => setPlanDraft({ ...planDraft, place: e.target.value })} />
-
-        <label style={styles.label}>集合時間</label>
-        <input style={styles.input} placeholder="例：10:00" value={planDraft.time}
-          onChange={(e) => setPlanDraft({ ...planDraft, time: e.target.value })} />
-
-        <label style={styles.label}>持ち物</label>
-        <textarea style={styles.textarea} rows={2} placeholder="例：レジャーシート、飲み物"
-          value={planDraft.items} onChange={(e) => setPlanDraft({ ...planDraft, items: e.target.value })} />
-
-        <label style={styles.label}>その日の流れ</label>
-        <textarea style={styles.textarea} rows={3} placeholder="例：10時集合→公園でお昼→15時解散"
-          value={planDraft.flow} onChange={(e) => setPlanDraft({ ...planDraft, flow: e.target.value })} />
-
-        <label style={styles.label}>地図リンク</label>
-        <input style={styles.input} placeholder="https://maps.google.com/..." value={planDraft.mapLink}
-          onChange={(e) => setPlanDraft({ ...planDraft, mapLink: e.target.value })} />
-
-        <div style={styles.btnRow}>
-          <button style={styles.primaryBtn} onClick={commitPlan}>この内容で決定する</button>
-          <button style={styles.ghostBtn} onClick={skipOccurrence}>今回はお休み</button>
-        </div>
-      </section>
-
-      <section style={styles.card}>
-        <div style={styles.sectionTitle}><LeafIcon size={12} color="#9CB08D" /> やりたいことストック</div>
-        <div style={styles.subtext}>思いつかないときはここから選べます</div>
-
-        {ideaStock.length > 0 && (
-          <ul style={styles.stockList}>
-            {ideaStock.map((it) => (
-              <li key={it.id} style={styles.stockRow}>
-                <span style={{ flex: 1, minWidth: 0 }}>{it.text}</span>
-                <button style={styles.tinyGhostBtn} onClick={() => removeStockIdea(it.id)}>削除</button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div style={styles.formBlock}>
-          <label style={styles.label}>やりたいこと</label>
-          <textarea style={styles.textarea} rows={2} placeholder="例：水族館に行きたい"
-            value={stockText} onChange={(e) => setStockText(e.target.value)} />
-          <div style={styles.btnRow}>
-            <button style={styles.primaryBtn} onClick={addStockIdea}>ストックに追加</button>
-          </div>
-        </div>
-      </section>
-
-      <section style={styles.membersSection}>
-        <div style={styles.sectionHeadRow}>
-          <div style={styles.sectionTitle}><LeafIcon size={12} color="#9CB08D" /> メンバー（{members.length}人）</div>
-          <button style={styles.addBtn} onClick={() => setShowAdd((v) => !v)}>{showAdd ? "閉じる" : "+ 追加"}</button>
-        </div>
-        {showAdd && (
-          <div style={styles.addRow}>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="名前を入力" style={styles.input}
-              onKeyDown={(e) => e.key === "Enter" && addMember()} />
-            <button style={styles.primaryBtnSmall} onClick={addMember}>追加する</button>
-          </div>
-        )}
-        {photoError && <div style={styles.errorText}>{photoError}</div>}
-        <ul style={styles.memberList}>
-          {members.map((m) => (
-            <li key={m.id} style={styles.memberRowRich}>
-              <label className="wr-photo-label" title="写真を変更" style={{ cursor: "pointer", display: "inline-flex" }}>
-                <Avatar member={m} size={36} fontSize={14} />
-                <input type="file" accept="image/*" style={{ display: "none" }}
-                  onChange={(e) => handlePhotoSelect(m.id, e.target.files && e.target.files[0])} />
-              </label>
-
-              {editingMemberId === m.id ? (
-                <input value={editDraft} onChange={(e) => setEditDraft(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && commitEditName()} onBlur={commitEditName} autoFocus style={styles.nameEditInput} />
-              ) : (
-                <span style={styles.memberName} onClick={() => startEditName(m)} title="タップして名前を変更">{m.name}</span>
-              )}
-
-              {m.photo && (<button style={styles.tinyGhostBtn} onClick={() => removePhoto(m.id)}>写真を削除</button>)}
-              <button style={styles.editBtn} onClick={() => startEditName(m)} aria-label={`${m.name}の名前を編集`}>✎</button>
-              {members.length > 2 && (
-                <button style={styles.removeBtn} onClick={() => removeMember(m.id)} aria-label={`${m.name}を削除`}>×</button>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section style={styles.historySection}>
-        <div style={styles.sectionTitle}><LeafIcon size={12} color="#9CB08D" /> これまでの記録</div>
-        {history.length === 0 ? (
-          <div style={styles.emptyState}>まだ記録がないよ。決定すると、ここに残っていくよ。</div>
-        ) : (
-          <ul style={styles.historyList}>
-            {history.map((h) => {
-              const m = memberById(h.memberId);
-              return (
-                <li key={h.id} style={styles.historyRowRich}>
-                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <Avatar member={m} size={24} fontSize={11} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={styles.historyMeta}>{m ? m.name : "元メンバー"} ・ {formatDateLabel(h.date)}</div>
-                      <div style={styles.historyPlan}>{h.plan}</div>
-                    </div>
-                  </div>
-                  {(h.budget || h.place || h.time || h.items || h.flow || h.mapLink) && (
-                    <div style={styles.detailGrid}>
-                      {h.budget && <div style={styles.detailRow}><span style={styles.detailLabel}>予算</span>{h.budget}</div>}
-                      {h.place && <div style={styles.detailRow}><span style={styles.detailLabel}>場所</span>{h.place}</div>}
-                      {h.time && <div style={styles.detailRow}><span style={styles.detailLabel}>時間</span>{h.time}</div>}
-                      {h.items && <div style={styles.detailRow}><span style={styles.detailLabel}>持ち物</span>{h.items}</div>}
-                      {h.flow && <div style={styles.detailRow}><span style={styles.detailLabel}>流れ</span>{h.flow}</div>}
-                      {h.mapLink && (
-                        <div style={styles.detailRow}>
-                          <span style={styles.detailLabel}>地図</span>
-                          <a href={h.mapLink} target="_blank" rel="noopener noreferrer" style={styles.mapLink}>開く</a>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <footer style={styles.footer}>このデータは参加者全員でリアルタイムに共有されます</footer>
-    </div>
-  );
+  return /* @__PURE__ */ React.createElement("div", { style: styles.page }, /* @__PURE__ */ React.createElement(WatermarkBranch, null), /* @__PURE__ */ React.createElement("header", { style: styles.header }, /* @__PURE__ */ React.createElement(BotanicalBranch, { width: 230, height: 68 }), /* @__PURE__ */ React.createElement("h1", { style: styles.title }, "\u30D0\u30EA\u30E5\u30FC\u9031\u672B\u4E8B\u696D\u90E8"), /* @__PURE__ */ React.createElement("div", { style: styles.eyebrow }, "2\u9031\u9593\u306B1\u56DE\u30FB\u571F\u66DC\u958B\u50AC")), /* @__PURE__ */ React.createElement("section", { style: styles.calendarCard }, /* @__PURE__ */ React.createElement("div", { style: styles.calHeadRow }, /* @__PURE__ */ React.createElement("button", { style: styles.calNavBtn, onClick: () => setMonthOffset((v) => v - 1), "aria-label": "\u524D\u306E\u6708" }, "\u2039"), /* @__PURE__ */ React.createElement("div", { style: styles.calMonthLabel }, viewDate.getFullYear(), "\u5E74 ", viewDate.getMonth() + 1, "\u6708"), /* @__PURE__ */ React.createElement("button", { style: styles.calNavBtn, onClick: () => setMonthOffset((v) => v + 1), "aria-label": "\u6B21\u306E\u6708" }, "\u203A")), /* @__PURE__ */ React.createElement("div", { style: styles.calWeekdayRow }, WEEKDAY_LABELS.map((w) => /* @__PURE__ */ React.createElement("div", { key: w, style: styles.calWeekdayCell }, w))), monthWeeks.map((week, wi) => /* @__PURE__ */ React.createElement("div", { key: wi, style: styles.calWeekRow }, week.map((d, di) => {
+    if (!d) return /* @__PURE__ */ React.createElement("div", { key: di, style: styles.calCellEmpty });
+    const iso = isoOf(d);
+    const occ = occurrenceMap.get(iso);
+    const isToday = iso === todayISO;
+    const m = occ ? memberById(occ.memberId) : null;
+    return /* @__PURE__ */ React.createElement("div", { key: di, style: __spreadProps(__spreadValues({}, styles.calCell), { background: isToday ? "#F0EDE4" : "transparent" }) }, /* @__PURE__ */ React.createElement("div", { style: __spreadProps(__spreadValues({}, styles.calDateNum), { fontWeight: isToday ? 700 : 400, color: isToday ? "#3B4636" : "#8A9680" }) }, d.getDate()), occ && m && /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        title: `${m.name}${occ.decided ? "\u30FB\u6C7A\u5B9A\u6E08\u307F" : "\u30FB\u62C5\u5F53\u4E88\u5B9A"}`,
+        style: __spreadProps(__spreadValues({}, styles.calDot), { background: occ.decided ? m.color : "#fff", border: `1.6px solid ${m.color}` })
+      }
+    ));
+  }))), /* @__PURE__ */ React.createElement(Divider, null), /* @__PURE__ */ React.createElement("div", { style: styles.legendRow }, members.map((m) => /* @__PURE__ */ React.createElement("div", { key: m.id, style: styles.legendItem }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 16, fontSize: 9 }), /* @__PURE__ */ React.createElement("span", { style: styles.legendName }, m.name))))), /* @__PURE__ */ React.createElement("section", { style: styles.dateCard }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, /* @__PURE__ */ React.createElement(Avatar, { member: current, size: 36, fontSize: 14 }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.cardSub }, "\u6B21\u56DE\u306E\u958B\u50AC\u65E5\u30FB\u62C5\u5F53 ", current.name), /* @__PURE__ */ React.createElement("div", { style: styles.dateBig }, formatDateLabel(currentDate)))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" } }, /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtnSmall, onClick: () => {
+    setDateDraft(currentDate);
+    setShowDateEdit((v) => !v);
+  } }, "\u65E5\u4ED8\u3092\u5909\u66F4"), /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtnSmall, onClick: () => setShowReassign((v) => !v) }, "\u62C5\u5F53\u3092\u5909\u66F4"))), showDateEdit && /* @__PURE__ */ React.createElement("div", { style: styles.dateEditRow }, /* @__PURE__ */ React.createElement("input", { type: "date", value: dateDraft, onChange: (e) => setDateDraft(e.target.value), style: styles.input }), /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtnSmall, onClick: applyDateChange }, "\u5909\u66F4\u3059\u308B")), showReassign && /* @__PURE__ */ React.createElement("div", { style: styles.dateEditRow }, /* @__PURE__ */ React.createElement("select", { style: styles.select, value: current.id, onChange: (e) => reassignCurrent(e.target.value) }, members.map((m) => /* @__PURE__ */ React.createElement("option", { key: m.id, value: m.id }, m.name)))), /* @__PURE__ */ React.createElement("div", { style: styles.loopRow }, members.map((m, i) => {
+    const isCurrent = i === currentIndex % members.length;
+    return /* @__PURE__ */ React.createElement("div", { key: m.id, style: styles.loopItem }, /* @__PURE__ */ React.createElement("div", { style: { borderRadius: "50%", transform: isCurrent ? "scale(1.1)" : "scale(1)", transition: "transform 0.2s ease" } }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 42, ring: isCurrent })), /* @__PURE__ */ React.createElement("div", { style: styles.chipLabel }, m.name), i < members.length - 1 && /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#C3D0B5" }));
+  })), /* @__PURE__ */ React.createElement("section", { style: styles.card }, /* @__PURE__ */ React.createElement("div", { style: styles.cardHeadRow }, /* @__PURE__ */ React.createElement(Avatar, { member: current, size: 48, fontSize: 18, ring: true }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: styles.badge }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 11, color: "#7C9473" }), "\u62C5\u5F53"), /* @__PURE__ */ React.createElement("div", { style: styles.cardName }, current.name))), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u4ECA\u56DE\u3084\u308B\u3053\u3068"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      value: planDraft.text,
+      onChange: (e) => {
+        setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { text: e.target.value }));
+        if (error) setError("");
+        setChosenStockId(null);
+      },
+      placeholder: "\u4F8B\uFF1A\u8FD1\u304F\u306E\u516C\u5712\u3067\u30D4\u30AF\u30CB\u30C3\u30AF\u3059\u308B",
+      style: styles.textarea,
+      rows: 3
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8 } }, /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtnSmall, onClick: drawLottery, disabled: ideaStock.length === 0 }, "\u30B9\u30C8\u30C3\u30AF\u304B\u3089\u9078\u3076")), error && /* @__PURE__ */ React.createElement("div", { style: styles.errorText }, error), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u4E88\u7B97"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "\u4F8B\uFF1A1\u4EBA2000\u5186",
+      value: planDraft.budget,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { budget: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u96C6\u5408\u5834\u6240"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "\u4F8B\uFF1A\u3007\u3007\u99C5 \u6771\u53E3",
+      value: planDraft.place,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { place: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u96C6\u5408\u6642\u9593"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "\u4F8B\uFF1A10:00",
+      value: planDraft.time,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { time: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u6301\u3061\u7269"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      style: styles.textarea,
+      rows: 2,
+      placeholder: "\u4F8B\uFF1A\u30EC\u30B8\u30E3\u30FC\u30B7\u30FC\u30C8\u3001\u98F2\u307F\u7269",
+      value: planDraft.items,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { items: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u305D\u306E\u65E5\u306E\u6D41\u308C"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      style: styles.textarea,
+      rows: 3,
+      placeholder: "\u4F8B\uFF1A10\u6642\u96C6\u5408\u2192\u516C\u5712\u3067\u304A\u663C\u219215\u6642\u89E3\u6563",
+      value: planDraft.flow,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { flow: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u5730\u56F3\u30EA\u30F3\u30AF"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: styles.input,
+      placeholder: "https://maps.google.com/...",
+      value: planDraft.mapLink,
+      onChange: (e) => setPlanDraft(__spreadProps(__spreadValues({}, planDraft), { mapLink: e.target.value }))
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: styles.btnRow }, /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtn, onClick: commitPlan }, "\u3053\u306E\u5185\u5BB9\u3067\u6C7A\u5B9A\u3059\u308B"), /* @__PURE__ */ React.createElement("button", { style: styles.ghostBtn, onClick: skipOccurrence }, "\u4ECA\u56DE\u306F\u304A\u4F11\u307F"))), /* @__PURE__ */ React.createElement("section", { style: styles.card }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionTitle }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#9CB08D" }), " \u3084\u308A\u305F\u3044\u3053\u3068\u30B9\u30C8\u30C3\u30AF"), /* @__PURE__ */ React.createElement("div", { style: styles.subtext }, "\u601D\u3044\u3064\u304B\u306A\u3044\u3068\u304D\u306F\u3053\u3053\u304B\u3089\u9078\u3079\u307E\u3059"), ideaStock.length > 0 && /* @__PURE__ */ React.createElement("ul", { style: styles.stockList }, ideaStock.map((it) => /* @__PURE__ */ React.createElement("li", { key: it.id, style: styles.stockRow }, /* @__PURE__ */ React.createElement("span", { style: { flex: 1, minWidth: 0 } }, it.text), /* @__PURE__ */ React.createElement("button", { style: styles.tinyGhostBtn, onClick: () => removeStockIdea(it.id) }, "\u524A\u9664")))), /* @__PURE__ */ React.createElement("div", { style: styles.formBlock }, /* @__PURE__ */ React.createElement("label", { style: styles.label }, "\u3084\u308A\u305F\u3044\u3053\u3068"), /* @__PURE__ */ React.createElement(
+    "textarea",
+    {
+      style: styles.textarea,
+      rows: 2,
+      placeholder: "\u4F8B\uFF1A\u6C34\u65CF\u9928\u306B\u884C\u304D\u305F\u3044",
+      value: stockText,
+      onChange: (e) => setStockText(e.target.value)
+    }
+  ), /* @__PURE__ */ React.createElement("div", { style: styles.btnRow }, /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtn, onClick: addStockIdea }, "\u30B9\u30C8\u30C3\u30AF\u306B\u8FFD\u52A0")))), /* @__PURE__ */ React.createElement("section", { style: styles.membersSection }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionHeadRow }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionTitle }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#9CB08D" }), " \u30E1\u30F3\u30D0\u30FC\uFF08", members.length, "\u4EBA\uFF09"), /* @__PURE__ */ React.createElement("button", { style: styles.addBtn, onClick: () => setShowAdd((v) => !v) }, showAdd ? "\u9589\u3058\u308B" : "+ \u8FFD\u52A0")), showAdd && /* @__PURE__ */ React.createElement("div", { style: styles.addRow }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: newName,
+      onChange: (e) => setNewName(e.target.value),
+      placeholder: "\u540D\u524D\u3092\u5165\u529B",
+      style: styles.input,
+      onKeyDown: (e) => e.key === "Enter" && addMember()
+    }
+  ), /* @__PURE__ */ React.createElement("button", { style: styles.primaryBtnSmall, onClick: addMember }, "\u8FFD\u52A0\u3059\u308B")), photoError && /* @__PURE__ */ React.createElement("div", { style: styles.errorText }, photoError), /* @__PURE__ */ React.createElement("ul", { style: styles.memberList }, members.map((m) => /* @__PURE__ */ React.createElement("li", { key: m.id, style: styles.memberRowRich }, /* @__PURE__ */ React.createElement("label", { className: "wr-photo-label", title: "\u5199\u771F\u3092\u5909\u66F4", style: { cursor: "pointer", display: "inline-flex" } }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 36, fontSize: 14 }), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "file",
+      accept: "image/*",
+      style: { display: "none" },
+      onChange: (e) => handlePhotoSelect(m.id, e.target.files && e.target.files[0])
+    }
+  )), editingMemberId === m.id ? /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      value: editDraft,
+      onChange: (e) => setEditDraft(e.target.value),
+      onKeyDown: (e) => e.key === "Enter" && commitEditName(),
+      onBlur: commitEditName,
+      autoFocus: true,
+      style: styles.nameEditInput
+    }
+  ) : /* @__PURE__ */ React.createElement("span", { style: styles.memberName, onClick: () => startEditName(m), title: "\u30BF\u30C3\u30D7\u3057\u3066\u540D\u524D\u3092\u5909\u66F4" }, m.name), m.photo && /* @__PURE__ */ React.createElement("button", { style: styles.tinyGhostBtn, onClick: () => removePhoto(m.id) }, "\u5199\u771F\u3092\u524A\u9664"), /* @__PURE__ */ React.createElement("button", { style: styles.editBtn, onClick: () => startEditName(m), "aria-label": `${m.name}\u306E\u540D\u524D\u3092\u7DE8\u96C6` }, "\u270E"), members.length > 2 && /* @__PURE__ */ React.createElement("button", { style: styles.removeBtn, onClick: () => removeMember(m.id), "aria-label": `${m.name}\u3092\u524A\u9664` }, "\xD7"))))), /* @__PURE__ */ React.createElement("section", { style: styles.historySection }, /* @__PURE__ */ React.createElement("div", { style: styles.sectionTitle }, /* @__PURE__ */ React.createElement(LeafIcon, { size: 12, color: "#9CB08D" }), " \u3053\u308C\u307E\u3067\u306E\u8A18\u9332"), history.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: styles.emptyState }, "\u307E\u3060\u8A18\u9332\u304C\u306A\u3044\u3088\u3002\u6C7A\u5B9A\u3059\u308B\u3068\u3001\u3053\u3053\u306B\u6B8B\u3063\u3066\u3044\u304F\u3088\u3002") : /* @__PURE__ */ React.createElement("ul", { style: styles.historyList }, history.map((h) => {
+    const m = memberById(h.memberId);
+    return /* @__PURE__ */ React.createElement("li", { key: h.id, style: styles.historyRowRich }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "flex-start" } }, /* @__PURE__ */ React.createElement(Avatar, { member: m, size: 24, fontSize: 11 }), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: styles.historyMeta }, m ? m.name : "\u5143\u30E1\u30F3\u30D0\u30FC", " \u30FB ", formatDateLabel(h.date)), /* @__PURE__ */ React.createElement("div", { style: styles.historyPlan }, h.plan))), (h.budget || h.place || h.time || h.items || h.flow || h.mapLink) && /* @__PURE__ */ React.createElement("div", { style: styles.detailGrid }, h.budget && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u4E88\u7B97"), h.budget), h.place && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u5834\u6240"), h.place), h.time && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u6642\u9593"), h.time), h.items && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u6301\u3061\u7269"), h.items), h.flow && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u6D41\u308C"), h.flow), h.mapLink && /* @__PURE__ */ React.createElement("div", { style: styles.detailRow }, /* @__PURE__ */ React.createElement("span", { style: styles.detailLabel }, "\u5730\u56F3"), /* @__PURE__ */ React.createElement("a", { href: h.mapLink, target: "_blank", rel: "noopener noreferrer", style: styles.mapLink }, "\u958B\u304F"))));
+  }))), /* @__PURE__ */ React.createElement("footer", { style: styles.footer }, "\u3053\u306E\u30C7\u30FC\u30BF\u306F\u53C2\u52A0\u8005\u5168\u54E1\u3067\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u306B\u5171\u6709\u3055\u308C\u307E\u3059"));
 }
-
 const styles = {
-  page: { minHeight: "100vh", background: "#F4F6F0", color: "#3B4636", fontFamily: "'Zen Maru Gothic', 'Hiragino Sans', 'Yu Gothic', sans-serif",
-    padding: "28px 18px 40px", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden" },
+  page: {
+    minHeight: "100vh",
+    background: "#F4F6F0",
+    color: "#3B4636",
+    fontFamily: "'Zen Maru Gothic', 'Hiragino Sans', 'Yu Gothic', sans-serif",
+    padding: "28px 18px 40px",
+    maxWidth: 480,
+    margin: "0 auto",
+    position: "relative",
+    overflow: "hidden"
+  },
   loadingWrap: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6F0" },
   loadingText: { color: "#8A9680", fontSize: 14 },
   header: { marginBottom: 24, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 2, position: "relative" },
@@ -783,11 +678,11 @@ const styles = {
   detailLabel: { color: "#8A9680", marginRight: 6 },
   mapLink: { color: "#5B8FA3", fontWeight: 700, textDecoration: "underline" },
   emptyState: { fontSize: 12.5, color: "#8A9680", background: "#F6F8F2", borderRadius: 12, padding: "14px", lineHeight: 1.6 },
-  footer: { textAlign: "center", fontSize: 10.5, color: "#A3AF97", marginTop: 20 },
+  footer: { textAlign: "center", fontSize: 10.5, color: "#A3AF97", marginTop: 20 }
 };
-
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<WeekendRotation />);
+root.render(/* @__PURE__ */ React.createElement(WeekendRotation, null));
+
 </script>
 </body>
 </html>
