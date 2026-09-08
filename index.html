@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>バリュー週末事業部</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F4F6F0; }
+  * { box-sizing: border-box; }
+  #root { min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Firebase (Realtime Database) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+  // Your web app's Firebase configuration (same project as the other weekend app)
+  const firebaseConfig = {
+    apiKey: "AIzaSyCFzPekM5FqYDbqu2xkpljHKu6jto0ZxZM",
+    authDomain: "value-weekend-pjt.firebaseapp.com",
+    databaseURL: "https://value-weekend-pjt-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "value-weekend-pjt",
+    storageBucket: "value-weekend-pjt.firebasestorage.app",
+    messagingSenderId: "127340124762",
+    appId: "1:127340124762:web:ce42c26a6010696fded663",
+    measurementId: "G-Z4QRQCWGBB"
+  };
+  firebase.initializeApp(firebaseConfig);
+  // Separate top-level node so this app's data never collides with the other weekend app.
+  window.__valueWeekendRef = firebase.database().ref("valueWeekendRotation/state");
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+const PALETTE = ["#7C9473", "#C97B84", "#C9A227", "#8E7CC3", "#5B8FA3", "#A3B565", "#D98CA0", "#4F7C6D"];
+const INTERVAL_DAYS = 14;
+const FUTURE_OCCURRENCES = 10;
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const AVATAR_MAX_DIM = 160;
+const emptyPlanDraft = { text: "", budget: "", place: "", time: "", items: "", flow: "", mapLink: "" };
+
+function uid() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function nextSaturdayISO(from = new Date()) {
+  const d = new Date(from);
+  const day = d.getDay();
+  const add = (6 - day + 7) % 7 || 7;
+  d.setDate(d.getDate() + add);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+function addDaysISO(iso, days) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function isoOf(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDateLabel(iso) {
+  const d = new Date(iso + "T00:00:00");
+  return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAY_LABELS[d.getDay()]})`;
+}
+
+function fileToResizedDataUrl(file, maxDim = AVATAR_MAX_DIM) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("read failed"));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("image load failed"));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else if (height >= width && height > maxDim) {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.78));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function defaultState() {
+  return {
+    members: [
+      { id: uid(), name: "ひとり目", color: PALETTE[0], photo: null },
+      { id: uid(), name: "ふたり目", color: PALETTE[1], photo: null },
+      { id: uid(), name: "みっつ目", color: PALETTE[2], photo: null },
+    ],
+    currentIndex: 0,
+    currentDate: nextSaturdayISO(),
+    ideaStock: [],
+    history: [],
+  };
+}
+
+function buildOccurrenceMap(state) {
+  const map = new Map();
+  for (const h of state.history) {
+    map.set(h.date, { date: h.date, memberId: h.memberId, plan: h.plan, decided: true });
+  }
+  for (let i = 0; i < FUTURE_OCCURRENCES; i++) {
+    const date = addDaysISO(state.currentDate, i * INTERVAL_DAYS);
+    if (!map.has(date)) {
+      const memberId = state.members[(state.currentIndex + i) % state.members.length].id;
+      map.set(date, { date, memberId, plan: null, decided: false });
+    }
+  }
+  return map;
+}
+
+function buildMonthGrid(year, month) {
+  const first = new Date(year, month, 1);
+  const startPad = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+function Avatar({ member, size, fontSize, ring }) {
+  const ringStyle = ring
+    ? { padding: 2, background: "#B9C9AE", borderRadius: "50%" }
+    : {};
+  const inner = !member ? (
+    <div style={{ width: size, height: size, borderRadius: "50%", background: "#ccc", flexShrink: 0 }} />
+  ) : member.photo ? (
+    <img
+      src={member.photo}
+      alt={member.name}
+      style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, display: "block" }}
+    />
+  ) : (
+    <div
+      style={{
+        width: size, height: size, borderRadius: "50%", background: member.color, color: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600,
+        fontSize: fontSize || Math.round(size * 0.4), flexShrink: 0,
+      }}
+    >
+      {member.name.slice(0, 1)}
+    </div>
+  );
+  return ring ? <div style={ringStyle}>{inner}</div> : inner;
+}
+
+function LeafShape({ x, y, angle, scale = 1, fill, veinColor }) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${angle}) scale(${scale})`}>
+      <path d="M0,0 C-7,-5 -8,-15 0,-24 C8,-15 7,-5 0,0 Z" fill={fill} />
+      <path d="M0,-2 C0,-9 0,-16 0,-22" stroke={veinColor} strokeWidth="0.8" fill="none" opacity="0.7" />
+      <path d="M0,-8 C-2.5,-10 -3.5,-11 -4,-12" stroke={veinColor} strokeWidth="0.6" fill="none" opacity="0.55" />
+      <path d="M0,-8 C2.5,-10 3.5,-11 4,-12" stroke={veinColor} strokeWidth="0.6" fill="none" opacity="0.55" />
+      <path d="M0,-14 C-2,-16 -2.8,-16.5 -3.2,-17.3" stroke={veinColor} strokeWidth="0.55" fill="none" opacity="0.5" />
+      <path d="M0,-14 C2,-16 2.8,-16.5 3.2,-17.3" stroke={veinColor} strokeWidth="0.55" fill="none" opacity="0.5" />
+    </g>
+  );
+}
+
+function LeafIcon({ size = 15, color = "#7C9473" }) {
+  return (
+    <svg width={size} height={size * 1.15} viewBox="0 0 20 24" style={{ flexShrink: 0 }}>
+      <path d="M10 23C4 20 2 13 6 5C13 6 18 11 17 18C16.5 21 12.5 23 10 23Z" fill={color} />
+      <path d="M10 22C9 17 9 10 9 5" stroke="#fff" strokeWidth="0.9" opacity="0.55" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BotanicalBranch({ width = 260, height = 78, tone = "#8FA482", veinTone = "#F4F6F0" }) {
+  const stemD = "M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9";
+  const leaves = [
+    { x: 30, y: 58, angle: 205, s: 0.85 }, { x: 48, y: 42, angle: 25, s: 0.95 },
+    { x: 66, y: 34, angle: 210, s: 0.9 }, { x: 88, y: 22, angle: 20, s: 1 },
+    { x: 112, y: 18, angle: 205, s: 0.95 }, { x: 138, y: 14, angle: 15, s: 1 },
+    { x: 164, y: 12, angle: 200, s: 0.9 }, { x: 190, y: 11, angle: 20, s: 0.9 },
+    { x: 216, y: 10, angle: 205, s: 0.8 },
+  ];
+  return (
+    <svg width={width} height={height} viewBox="0 0 260 78" fill="none" style={{ display: "block" }}>
+      <path d={stemD} stroke={tone} strokeWidth="1.3" fill="none" opacity="0.85" />
+      {leaves.map((l, i) => (<LeafShape key={i} x={l.x} y={l.y} angle={l.angle} scale={l.s} fill={tone} veinColor={veinTone} />))}
+    </svg>
+  );
+}
+
+function WatermarkBranch() {
+  return (
+    <svg width="420" height="620" viewBox="0 0 260 78"
+      style={{ position: "absolute", top: -10, right: -90, opacity: 0.06, transform: "rotate(18deg)", pointerEvents: "none" }}>
+      <path d="M14,64 C40,50 55,34 78,26 C104,17 132,14 160,13 C188,12 218,13 246,9" stroke="#3B4636" strokeWidth="1.1" fill="none" />
+      {[
+        [30, 58, 205, 0.9], [50, 40, 25, 1], [70, 32, 210, 0.95], [95, 20, 15, 1.05],
+        [120, 16, 200, 1], [148, 13, 20, 1], [176, 11, 205, 0.9], [204, 10, 15, 0.9], [230, 9, 200, 0.8],
+      ].map(([x, y, angle, s], i) => (
+        <LeafShape key={i} x={x} y={y} angle={angle} scale={s} fill="#3B4636" veinColor="#F4F6F0" />
+      ))}
+    </svg>
+  );
+}
+
+function Divider() {
+  return <div style={styles.divider} />;
+}
+
+function WeekendRotation() {
+  const [state, setState] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [showDateEdit, setShowDateEdit] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
+  const [error, setError] = useState("");
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [editingMemberId, setEditingMemberId] = useState(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [stockText, setStockText] = useState("");
+  const [planDraft, setPlanDraft] = useState(emptyPlanDraft);
+  const [chosenStockId, setChosenStockId] = useState(null);
+  const [showReassign, setShowReassign] = useState(false);
+
+  const persist = useCallback((next) => {
+    try {
+      window.__valueWeekendRef.set(next);
+    } catch (e) {
+      console.error("save failed", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ref = window.__valueWeekendRef;
+    const handler = (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        const parsed = val;
+        parsed.members = (parsed.members || []).map((m) => ({ photo: null, ...m }));
+        if (!parsed.ideaStock) parsed.ideaStock = [];
+        if (!parsed.history) parsed.history = [];
+        setState(parsed);
+      } else {
+        const init = defaultState();
+        setState(init);
+        ref.set(init);
+      }
+      setLoading(false);
+    };
+    ref.on("value", handler, (err) => {
+      console.error("firebase read failed", err);
+      setLoading(false);
+    });
+    return () => ref.off("value", handler);
+  }, []);
+
+  const occurrenceMap = useMemo(() => (state ? buildOccurrenceMap(state) : new Map()), [state]);
+  const todayRef = useMemo(() => new Date(), []);
+  const viewDate = new Date(todayRef.getFullYear(), todayRef.getMonth() + monthOffset, 1);
+  const monthWeeks = useMemo(
+    () => buildMonthGrid(viewDate.getFullYear(), viewDate.getMonth()),
+    [viewDate.getFullYear(), viewDate.getMonth()]
+  );
+  const todayISO = isoOf(todayRef);
+
+  if (loading || !state) {
+    return (
+      <div style={styles.loadingWrap}>
+        <div style={styles.loadingText}>よみこみ中…</div>
+      </div>
+    );
+  }
+
+  const { members, currentIndex, currentDate, ideaStock, history } = state;
+  const current = members[currentIndex % members.length];
+  const memberById = (id) => members.find((m) => m.id === id);
+
+  const update = (mutator) => {
+    setState((prev) => {
+      const next = mutator(structuredClone(prev));
+      persist(next);
+      return next;
+    });
+  };
+
+  const commitPlan = () => {
+    const text = planDraft.text.trim();
+    if (!text) { setError("予定の内容を入力してね"); return; }
+    setError("");
+    update((s) => {
+      s.history = [
+        { id: uid(), memberId: s.members[s.currentIndex % s.members.length].id, plan: text, date: s.currentDate,
+          budget: planDraft.budget, place: planDraft.place, time: planDraft.time, items: planDraft.items,
+          flow: planDraft.flow, mapLink: planDraft.mapLink },
+        ...s.history,
+      ].slice(0, 60);
+      if (chosenStockId) {
+        s.ideaStock = s.ideaStock.filter((x) => x.id !== chosenStockId);
+      }
+      s.currentIndex = (s.currentIndex + 1) % s.members.length;
+      s.currentDate = addDaysISO(s.currentDate, INTERVAL_DAYS);
+      return s;
+    });
+    setPlanDraft(emptyPlanDraft);
+    setChosenStockId(null);
+  };
+
+  const skipOccurrence = () => {
+    update((s) => {
+      s.currentIndex = (s.currentIndex + 1) % s.members.length;
+      s.currentDate = addDaysISO(s.currentDate, INTERVAL_DAYS);
+      return s;
+    });
+    setPlanDraft(emptyPlanDraft);
+    setChosenStockId(null);
+  };
+
+  const applyDateChange = () => {
+    if (!dateDraft) return;
+    update((s) => { s.currentDate = dateDraft; return s; });
+    setShowDateEdit(false);
+  };
+
+  const reassignCurrent = (memberId) => {
+    update((s) => {
+      const idx = s.members.findIndex((m) => m.id === memberId);
+      if (idx >= 0) s.currentIndex = idx;
+      return s;
+    });
+    setShowReassign(false);
+  };
+
+  const addMember = () => {
+    const name = newName.trim();
+    if (!name) return;
+    update((s) => {
+      const color = PALETTE[s.members.length % PALETTE.length];
+      s.members.push({ id: uid(), name, color, photo: null });
+      return s;
+    });
+    setNewName("");
+    setShowAdd(false);
+  };
+
+  const removeMember = (id) => {
+    if (members.length <= 2) return;
+    update((s) => {
+      const idx = s.members.findIndex((m) => m.id === id);
+      s.members = s.members.filter((m) => m.id !== id);
+      if (idx <= s.currentIndex) {
+        s.currentIndex = ((s.currentIndex - 1) + s.members.length) % s.members.length;
+      } else {
+        s.currentIndex = s.currentIndex % s.members.length;
+      }
+      return s;
+    });
+  };
+
+  const startEditName = (m) => { setEditingMemberId(m.id); setEditDraft(m.name); };
+
+  const commitEditName = () => {
+    const name = editDraft.trim();
+    if (name) {
+      update((s) => {
+        const m = s.members.find((x) => x.id === editingMemberId);
+        if (m) m.name = name;
+        return s;
+      });
+    }
+    setEditingMemberId(null);
+    setEditDraft("");
+  };
+
+  const handlePhotoSelect = async (memberId, file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setPhotoError("画像ファイルを選んでね"); return; }
+    try {
+      setPhotoError("");
+      const dataUrl = await fileToResizedDataUrl(file);
+      update((s) => {
+        const m = s.members.find((x) => x.id === memberId);
+        if (m) m.photo = dataUrl;
+        return s;
+      });
+    } catch (e) {
+      setPhotoError("写真の読み込みに失敗したよ");
+    }
+  };
+
+  const removePhoto = (memberId) => {
+    update((s) => {
+      const m = s.members.find((x) => x.id === memberId);
+      if (m) m.photo = null;
+      return s;
+    });
+  };
+
+  const addStockIdea = () => {
+    const text = stockText.trim();
+    if (!text) return;
+    update((s) => {
+      s.ideaStock.push({ id: uid(), text, ts: Date.now() });
+      return s;
+    });
+    setStockText("");
+  };
+
+  const removeStockIdea = (id) => {
+    update((s) => {
+      s.ideaStock = s.ideaStock.filter((x) => x.id !== id);
+      return s;
+    });
+  };
+
+  const drawLottery = () => {
+    if (ideaStock.length === 0) return;
+    const pick = ideaStock[Math.floor(Math.random() * ideaStock.length)];
+    setPlanDraft({ ...emptyPlanDraft, text: pick.text });
+    setChosenStockId(pick.id);
+    setError("");
+  };
+
+  return (
+    <div style={styles.page}>
+      <WatermarkBranch />
+
+      <header style={styles.header}>
+        <BotanicalBranch width={230} height={68} />
+        <h1 style={styles.title}>バリュー週末事業部</h1>
+        <div style={styles.eyebrow}>2週間に1回・土曜開催</div>
+      </header>
+
+      <section style={styles.calendarCard}>
+        <div style={styles.calHeadRow}>
+          <button style={styles.calNavBtn} onClick={() => setMonthOffset((v) => v - 1)} aria-label="前の月">‹</button>
+          <div style={styles.calMonthLabel}>{viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月</div>
+          <button style={styles.calNavBtn} onClick={() => setMonthOffset((v) => v + 1)} aria-label="次の月">›</button>
+        </div>
+        <div style={styles.calWeekdayRow}>
+          {WEEKDAY_LABELS.map((w) => (<div key={w} style={styles.calWeekdayCell}>{w}</div>))}
+        </div>
+        {monthWeeks.map((week, wi) => (
+          <div key={wi} style={styles.calWeekRow}>
+            {week.map((d, di) => {
+              if (!d) return <div key={di} style={styles.calCellEmpty} />;
+              const iso = isoOf(d);
+              const occ = occurrenceMap.get(iso);
+              const isToday = iso === todayISO;
+              const m = occ ? memberById(occ.memberId) : null;
+              return (
+                <div key={di} style={{ ...styles.calCell, background: isToday ? "#F0EDE4" : "transparent" }}>
+                  <div style={{ ...styles.calDateNum, fontWeight: isToday ? 700 : 400, color: isToday ? "#3B4636" : "#8A9680" }}>
+                    {d.getDate()}
+                  </div>
+                  {occ && m && (
+                    <div title={`${m.name}${occ.decided ? "・決定済み" : "・担当予定"}`}
+                      style={{ ...styles.calDot, background: occ.decided ? m.color : "#fff", border: `1.6px solid ${m.color}` }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <Divider />
+        <div style={styles.legendRow}>
+          {members.map((m) => (
+            <div key={m.id} style={styles.legendItem}>
+              <Avatar member={m} size={16} fontSize={9} />
+              <span style={styles.legendName}>{m.name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section style={styles.dateCard}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Avatar member={current} size={36} fontSize={14} />
+          <div>
+            <div style={styles.cardSub}>次回の開催日・担当 {current.name}</div>
+            <div style={styles.dateBig}>{formatDateLabel(currentDate)}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+          <button style={styles.ghostBtnSmall} onClick={() => { setDateDraft(currentDate); setShowDateEdit((v) => !v); }}>日付を変更</button>
+          <button style={styles.ghostBtnSmall} onClick={() => setShowReassign((v) => !v)}>担当を変更</button>
+        </div>
+      </section>
+      {showDateEdit && (
+        <div style={styles.dateEditRow}>
+          <input type="date" value={dateDraft} onChange={(e) => setDateDraft(e.target.value)} style={styles.input} />
+          <button style={styles.primaryBtnSmall} onClick={applyDateChange}>変更する</button>
+        </div>
+      )}
+      {showReassign && (
+        <div style={styles.dateEditRow}>
+          <select style={styles.select} value={current.id} onChange={(e) => reassignCurrent(e.target.value)}>
+            {members.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+          </select>
+        </div>
+      )}
+
+      <div style={styles.loopRow}>
+        {members.map((m, i) => {
+          const isCurrent = i === currentIndex % members.length;
+          return (
+            <div key={m.id} style={styles.loopItem}>
+              <div style={{ borderRadius: "50%", transform: isCurrent ? "scale(1.1)" : "scale(1)", transition: "transform 0.2s ease" }}>
+                <Avatar member={m} size={42} ring={isCurrent} />
+              </div>
+              <div style={styles.chipLabel}>{m.name}</div>
+              {i < members.length - 1 && <LeafIcon size={12} color="#C3D0B5" />}
+            </div>
+          );
+        })}
+      </div>
+
+      <section style={styles.card}>
+        <div style={styles.cardHeadRow}>
+          <Avatar member={current} size={48} fontSize={18} ring />
+          <div>
+            <div style={styles.badge}><LeafIcon size={11} color="#7C9473" />担当</div>
+            <div style={styles.cardName}>{current.name}</div>
+          </div>
+        </div>
+
+        <label style={styles.label}>今回やること</label>
+        <textarea
+          value={planDraft.text}
+          onChange={(e) => { setPlanDraft({ ...planDraft, text: e.target.value }); if (error) setError(""); setChosenStockId(null); }}
+          placeholder="例：近くの公園でピクニックする" style={styles.textarea} rows={3} />
+        <div style={{ marginTop: 8 }}>
+          <button style={styles.ghostBtnSmall} onClick={drawLottery} disabled={ideaStock.length === 0}>ストックから選ぶ</button>
+        </div>
+        {error && <div style={styles.errorText}>{error}</div>}
+
+        <label style={styles.label}>予算</label>
+        <input style={styles.input} placeholder="例：1人2000円" value={planDraft.budget}
+          onChange={(e) => setPlanDraft({ ...planDraft, budget: e.target.value })} />
+
+        <label style={styles.label}>集合場所</label>
+        <input style={styles.input} placeholder="例：〇〇駅 東口" value={planDraft.place}
+          onChange={(e) => setPlanDraft({ ...planDraft, place: e.target.value })} />
+
+        <label style={styles.label}>集合時間</label>
+        <input style={styles.input} placeholder="例：10:00" value={planDraft.time}
+          onChange={(e) => setPlanDraft({ ...planDraft, time: e.target.value })} />
+
+        <label style={styles.label}>持ち物</label>
+        <textarea style={styles.textarea} rows={2} placeholder="例：レジャーシート、飲み物"
+          value={planDraft.items} onChange={(e) => setPlanDraft({ ...planDraft, items: e.target.value })} />
+
+        <label style={styles.label}>その日の流れ</label>
+        <textarea style={styles.textarea} rows={3} placeholder="例：10時集合→公園でお昼→15時解散"
+          value={planDraft.flow} onChange={(e) => setPlanDraft({ ...planDraft, flow: e.target.value })} />
+
+        <label style={styles.label}>地図リンク</label>
+        <input style={styles.input} placeholder="https://maps.google.com/..." value={planDraft.mapLink}
+          onChange={(e) => setPlanDraft({ ...planDraft, mapLink: e.target.value })} />
+
+        <div style={styles.btnRow}>
+          <button style={styles.primaryBtn} onClick={commitPlan}>この内容で決定する</button>
+          <button style={styles.ghostBtn} onClick={skipOccurrence}>今回はお休み</button>
+        </div>
+      </section>
+
+      <section style={styles.card}>
+        <div style={styles.sectionTitle}><LeafIcon size={12} color="#9CB08D" /> やりたいことストック</div>
+        <div style={styles.subtext}>思いつかないときはここから選べます</div>
+
+        {ideaStock.length > 0 && (
+          <ul style={styles.stockList}>
+            {ideaStock.map((it) => (
+              <li key={it.id} style={styles.stockRow}>
+                <span style={{ flex: 1, minWidth: 0 }}>{it.text}</span>
+                <button style={styles.tinyGhostBtn} onClick={() => removeStockIdea(it.id)}>削除</button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div style={styles.formBlock}>
+          <label style={styles.label}>やりたいこと</label>
+          <textarea style={styles.textarea} rows={2} placeholder="例：水族館に行きたい"
+            value={stockText} onChange={(e) => setStockText(e.target.value)} />
+          <div style={styles.btnRow}>
+            <button style={styles.primaryBtn} onClick={addStockIdea}>ストックに追加</button>
+          </div>
+        </div>
+      </section>
+
+      <section style={styles.membersSection}>
+        <div style={styles.sectionHeadRow}>
+          <div style={styles.sectionTitle}><LeafIcon size={12} color="#9CB08D" /> メンバー（{members.length}人）</div>
+          <button style={styles.addBtn} onClick={() => setShowAdd((v) => !v)}>{showAdd ? "閉じる" : "+ 追加"}</button>
+        </div>
+        {showAdd && (
+          <div style={styles.addRow}>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="名前を入力" style={styles.input}
+              onKeyDown={(e) => e.key === "Enter" && addMember()} />
+            <button style={styles.primaryBtnSmall} onClick={addMember}>追加する</button>
+          </div>
+        )}
+        {photoError && <div style={styles.errorText}>{photoError}</div>}
+        <ul style={styles.memberList}>
+          {members.map((m) => (
+            <li key={m.id} style={styles.memberRowRich}>
+              <label className="wr-photo-label" title="写真を変更" style={{ cursor: "pointer", display: "inline-flex" }}>
+                <Avatar member={m} size={36} fontSize={14} />
+                <input type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => handlePhotoSelect(m.id, e.target.files && e.target.files[0])} />
+              </label>
+
+              {editingMemberId === m.id ? (
+                <input value={editDraft} onChange={(e) => setEditDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && commitEditName()} onBlur={commitEditName} autoFocus style={styles.nameEditInput} />
+              ) : (
+                <span style={styles.memberName} onClick={() => startEditName(m)} title="タップして名前を変更">{m.name}</span>
+              )}
+
+              {m.photo && (<button style={styles.tinyGhostBtn} onClick={() => removePhoto(m.id)}>写真を削除</button>)}
+              <button style={styles.editBtn} onClick={() => startEditName(m)} aria-label={`${m.name}の名前を編集`}>✎</button>
+              {members.length > 2 && (
+                <button style={styles.removeBtn} onClick={() => removeMember(m.id)} aria-label={`${m.name}を削除`}>×</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section style={styles.historySection}>
+        <div style={styles.sectionTitle}><LeafIcon size={12} color="#9CB08D" /> これまでの記録</div>
+        {history.length === 0 ? (
+          <div style={styles.emptyState}>まだ記録がないよ。決定すると、ここに残っていくよ。</div>
+        ) : (
+          <ul style={styles.historyList}>
+            {history.map((h) => {
+              const m = memberById(h.memberId);
+              return (
+                <li key={h.id} style={styles.historyRowRich}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <Avatar member={m} size={24} fontSize={11} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={styles.historyMeta}>{m ? m.name : "元メンバー"} ・ {formatDateLabel(h.date)}</div>
+                      <div style={styles.historyPlan}>{h.plan}</div>
+                    </div>
+                  </div>
+                  {(h.budget || h.place || h.time || h.items || h.flow || h.mapLink) && (
+                    <div style={styles.detailGrid}>
+                      {h.budget && <div style={styles.detailRow}><span style={styles.detailLabel}>予算</span>{h.budget}</div>}
+                      {h.place && <div style={styles.detailRow}><span style={styles.detailLabel}>場所</span>{h.place}</div>}
+                      {h.time && <div style={styles.detailRow}><span style={styles.detailLabel}>時間</span>{h.time}</div>}
+                      {h.items && <div style={styles.detailRow}><span style={styles.detailLabel}>持ち物</span>{h.items}</div>}
+                      {h.flow && <div style={styles.detailRow}><span style={styles.detailLabel}>流れ</span>{h.flow}</div>}
+                      {h.mapLink && (
+                        <div style={styles.detailRow}>
+                          <span style={styles.detailLabel}>地図</span>
+                          <a href={h.mapLink} target="_blank" rel="noopener noreferrer" style={styles.mapLink}>開く</a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <footer style={styles.footer}>このデータは参加者全員でリアルタイムに共有されます</footer>
+    </div>
+  );
+}
+
+const styles = {
+  page: { minHeight: "100vh", background: "#F4F6F0", color: "#3B4636", fontFamily: "'Zen Maru Gothic', 'Hiragino Sans', 'Yu Gothic', sans-serif",
+    padding: "28px 18px 40px", maxWidth: 480, margin: "0 auto", position: "relative", overflow: "hidden" },
+  loadingWrap: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#F4F6F0" },
+  loadingText: { color: "#8A9680", fontSize: 14 },
+  header: { marginBottom: 24, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 2, position: "relative" },
+  eyebrow: { fontSize: 12, color: "#8A9680", fontWeight: 500 },
+  title: { fontSize: 21, fontWeight: 700, margin: "2px 0 0", color: "#3B4636", letterSpacing: "0.02em" },
+  calendarCard: { background: "#FFFFFF", borderRadius: 18, padding: "16px 14px", boxShadow: "0 2px 10px rgba(124,148,115,0.08)", marginBottom: 16, position: "relative" },
+  calHeadRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  calMonthLabel: { fontSize: 14, fontWeight: 700, color: "#3B4636" },
+  calNavBtn: { background: "#F1F4EC", border: "none", borderRadius: 999, width: 28, height: 28, fontSize: 15, color: "#7C9473", cursor: "pointer" },
+  calWeekdayRow: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 2 },
+  calWeekdayCell: { textAlign: "center", fontSize: 10.5, color: "#A3AF97", fontWeight: 600 },
+  calWeekRow: { display: "grid", gridTemplateColumns: "repeat(7, 1fr)" },
+  calCell: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3px 0", gap: 3, minHeight: 36, borderRadius: 8 },
+  calCellEmpty: { minHeight: 36 },
+  calDateNum: { fontSize: 11.5 },
+  calDot: { width: 10, height: 10, borderRadius: "50%" },
+  divider: { height: 1, background: "#EEF1E8", margin: "12px 0" },
+  legendRow: { display: "flex", flexWrap: "wrap", gap: 10 },
+  legendItem: { display: "flex", alignItems: "center", gap: 5 },
+  legendName: { fontSize: 11.5, color: "#6E7C63" },
+  dateCard: { background: "#FFFFFF", borderRadius: 18, padding: "13px 15px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(124,148,115,0.08)", marginBottom: 8, gap: 10, flexWrap: "wrap" },
+  dateBig: { fontSize: 17, fontWeight: 700, color: "#3B4636" },
+  dateEditRow: { display: "flex", gap: 8, marginBottom: 14 },
+  loopRow: { display: "flex", alignItems: "center", flexWrap: "wrap", margin: "18px 0 22px", gap: 2 },
+  loopItem: { display: "flex", alignItems: "center", position: "relative" },
+  chipLabel: { fontSize: 10.5, color: "#6E7C63", maxWidth: 52, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", position: "absolute", top: 48, left: "50%", transform: "translateX(-50%)" },
+  card: { background: "#FFFFFF", borderRadius: 20, padding: 20, boxShadow: "0 2px 12px rgba(124,148,115,0.08)", marginBottom: 20, marginTop: 16, position: "relative" },
+  cardHeadRow: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 },
+  cardSub: { fontSize: 11.5, color: "#8A9680" },
+  cardName: { fontSize: 18, fontWeight: 700, color: "#3B4636", marginTop: 3 },
+  badge: { display: "inline-flex", alignItems: "center", gap: 4, background: "#EEF3E6", color: "#7C9473", fontSize: 11, fontWeight: 700, padding: "2px 9px 2px 7px", borderRadius: 999 },
+  sectionTitle: { fontSize: 13.5, fontWeight: 700, color: "#5C6952", display: "flex", alignItems: "center", gap: 6 },
+  subtext: { fontSize: 11.5, color: "#8A9680", marginTop: 2, marginBottom: 12 },
+  stockList: { listStyle: "none", padding: 0, margin: "0 0 14px", display: "flex", flexDirection: "column", gap: 6 },
+  stockRow: { display: "flex", alignItems: "center", gap: 10, background: "#F6F8F2", borderRadius: 10, padding: "8px 12px", fontSize: 13.5, color: "#3B4636" },
+  formBlock: { borderTop: "1px solid #EEF1E8", paddingTop: 14, marginTop: 4 },
+  label: { display: "block", fontSize: 12.5, color: "#7C9473", marginBottom: 6, fontWeight: 600, marginTop: 12 },
+  select: { width: "100%", border: "1px solid #E1E7D9", borderRadius: 12, padding: "9px 12px", fontSize: 14, color: "#3B4636", background: "#F6F8F2" },
+  textarea: { width: "100%", border: "1px solid #E1E7D9", borderRadius: 14, padding: "10px 12px", fontSize: 14.5, fontFamily: "inherit", resize: "vertical", color: "#3B4636", background: "#F6F8F2" },
+  errorText: { color: "#B45B4F", fontSize: 12, marginTop: 6 },
+  btnRow: { display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" },
+  primaryBtn: { background: "#7C9473", color: "#fff", border: "none", borderRadius: 999, padding: "10px 18px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", flex: 1 },
+  primaryBtnSmall: { background: "#7C9473", color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" },
+  ghostBtn: { background: "transparent", color: "#8A9680", border: "1px solid #E1E7D9", borderRadius: 999, padding: "10px 16px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" },
+  ghostBtnSmall: { background: "transparent", color: "#7C9473", border: "1px solid #D7E2CA", borderRadius: 999, padding: "6px 13px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" },
+  membersSection: { marginBottom: 20 },
+  sectionHeadRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  addBtn: { background: "transparent", color: "#7C9473", border: "1px solid #D7E2CA", borderRadius: 999, padding: "4px 12px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" },
+  addRow: { display: "flex", gap: 8, marginBottom: 10 },
+  input: { width: "100%", border: "1px solid #E1E7D9", borderRadius: 12, padding: "9px 12px", fontSize: 14, color: "#3B4636", background: "#fff" },
+  memberList: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 },
+  memberRowRich: { display: "flex", alignItems: "center", gap: 10, background: "#FFFFFF", borderRadius: 14, padding: "7px 12px", boxShadow: "0 1px 6px rgba(124,148,115,0.06)", flexWrap: "wrap" },
+  memberName: { fontSize: 13.5, color: "#3B4636", flex: 1, cursor: "pointer", borderBottom: "1px dashed #D0DAC4" },
+  nameEditInput: { flex: 1, border: "1px solid #7C9473", borderRadius: 10, padding: "5px 8px", fontSize: 13.5, color: "#3B4636", minWidth: 80 },
+  editBtn: { background: "transparent", border: "none", color: "#A3AF97", fontSize: 13, cursor: "pointer", padding: "2px 4px" },
+  removeBtn: { background: "transparent", border: "none", color: "#A3AF97", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "2px 6px" },
+  tinyGhostBtn: { background: "transparent", border: "1px solid #E1E7D9", color: "#8A9680", fontSize: 10, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" },
+  historySection: { marginBottom: 12 },
+  historyList: { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 },
+  historyRowRich: { display: "flex", flexDirection: "column", gap: 8, background: "#FFFFFF", borderRadius: 14, padding: "12px 14px", boxShadow: "0 1px 6px rgba(124,148,115,0.06)" },
+  historyMeta: { fontSize: 10.5, color: "#8A9680", marginBottom: 2 },
+  historyPlan: { fontSize: 13.5, color: "#3B4636", wordBreak: "break-word" },
+  detailGrid: { display: "flex", flexDirection: "column", gap: 4, background: "#F6F8F2", borderRadius: 10, padding: "8px 10px" },
+  detailRow: { fontSize: 12, color: "#5C6952", wordBreak: "break-word" },
+  detailLabel: { color: "#8A9680", marginRight: 6 },
+  mapLink: { color: "#5B8FA3", fontWeight: 700, textDecoration: "underline" },
+  emptyState: { fontSize: 12.5, color: "#8A9680", background: "#F6F8F2", borderRadius: 12, padding: "14px", lineHeight: 1.6 },
+  footer: { textAlign: "center", fontSize: 10.5, color: "#A3AF97", marginTop: 20 },
+};
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<WeekendRotation />);
+</script>
+</body>
+</html>
